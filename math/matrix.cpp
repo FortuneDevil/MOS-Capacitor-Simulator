@@ -15,6 +15,22 @@ Matrix Matrix::identity(int size){
     return I;
 }
 
+int Matrix::size(){
+    return rows;
+}
+
+int Matrix::size() const {
+    return rows;
+}
+
+
+void Matrix::swapRows(int row1, int row2) {
+    for (int col = 0; col < cols; ++col) {
+        std::swap(data[row1 * cols + col], data[row2 * cols + col]);
+    }
+}
+
+
 // Assignment operator
 Matrix& Matrix::operator=(const Matrix& B) {
     if(this == &B)
