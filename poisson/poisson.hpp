@@ -3,6 +3,6 @@
 
 #include "../main/main.hpp"
 
-void poissonSolver(const std::vector<double>& x, Matrix& V, const Matrix& n, const Matrix& p, Condition cond, int startSC);
+void poissonSolver(const std::vector<double>& x, Matrix& V, const Matrix& n, const Matrix& p, Condition cond);
 
 #endif
