@@ -25,6 +25,7 @@ extern double NA, ND;
 extern double T;               // Temperature in Kelvin (default 300)
 extern double Vt;              // Thermal voltage
 extern int x_points;           // Number of grid points
+extern int n_VG;               // Number of points for VG
 extern int start_SC;           // Starting point for semiconductor region
 extern std::vector<double> x;  // Grid of positions
 
@@ -35,6 +36,9 @@ enum Condition {
     AC
 };
 
-void save_to_csv(const std::string& filename, const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, int time_step);
+void consistent(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond);
+
+void save_x_based(const std::string& filename, const std::vector<double>& x, const Matrix& V, const Matrix& n, const Matrix& p, int time_step);
+void save_capacitance_data(const std::string& filename, const std::vector<std::pair<double, double>>& data);
 
 #endif
