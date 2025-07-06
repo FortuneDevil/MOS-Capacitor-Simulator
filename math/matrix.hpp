@@ -22,6 +22,8 @@ public:
     int size() const;
 
     void swapRows(int row1, int row2);
+    void copyColumn(const int a, const int b); // copies column a to b
+
     Matrix& operator=(const Matrix& B);
     double& operator()(int i, int j);
     const double& operator()(int i, int j) const;

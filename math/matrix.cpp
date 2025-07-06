@@ -30,6 +30,15 @@ void Matrix::swapRows(int row1, int row2) {
     }
 }
 
+// copies column a to b
+void Matrix::copyColumn(const int a, const int b){
+    if (a < 0 || b < 0 || a >= this->cols || b >= this->cols) {
+        throw std::out_of_range("Column index out of bounds");
+    }
+    for (int i = 0; i < this->size(); i++){
+        (*this)(i, b) = (*this)(i, a);
+    }
+}
 
 // Assignment operator
 Matrix& Matrix::operator=(const Matrix& B) {
@@ -121,7 +130,7 @@ Matrix Matrix::transpose() const{
 void Matrix::printMatrix(std::ostream& out) const{
     for(int i = 0; i < rows; i++){
         for(int j = 0; j < cols; j++){
-            out << std::setw(12) << std::setprecision(5) << std::scientific << (*this)(i, j) << " ";
+            out << std::setw(12) << std::setprecision(6) << std::scientific << (*this)(i, j) << " ";
         }
         out << "\n";
     }
