@@ -10,6 +10,11 @@ int x_points = 500;  // Number of grid points
 int start_SC = 10;   // Starting point for semiconductor region
 std::vector<double> x(x_points, 0);  // Initialize x, all set to 0
 
+double ni = 1.5e10;
+double mu_n = 1360;
+double mu_p = 480;
+double delta_t;
+
 void consistent(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond){
     int iter = 0;
     while (iter < max_iter){
@@ -75,11 +80,9 @@ void save_capacitance_data(const std::string& filename, const std::vector<std::p
     std::cout << "Capacitance data saved to " << filename << std::endl;
 }
 
-double ni = 1.5e10;
-
 int main(){
     double freq = 1e3;  // Frequency in rad/s
-    double delta_t = 1e-3/freq;
+    delta_t = 1e-3/freq;
     double t_ox = 10e-9;    //10nm oxide
     Matrix V(x_points + 1, 3), n(x_points + 1, 3), p(x_points + 1, 3);
     for (int i = 0; i <= start_SC; i++){

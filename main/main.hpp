@@ -28,6 +28,8 @@ extern int x_points;           // Number of grid points
 extern int n_VG;               // Number of points for VG
 extern int start_SC;           // Starting point for semiconductor region
 extern std::vector<double> x;  // Grid of positions
+extern double mu_n, mu_p;
+extern double delta_t;
 
 // Enum for simulation conditions
 enum Condition {
