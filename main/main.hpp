@@ -10,15 +10,16 @@
 constexpr double a_x = 1e-10;
 constexpr double b_x = 1.01;
 constexpr double tol_np = 1e-3;
-constexpr double tol_V = 1e-6;
-constexpr int max_iter = 10000;
+constexpr double tol_V = 1e-3;
+constexpr int max_iter = 1000;
 constexpr double q = 1.6e-19;     // Elementary charge
 constexpr double kb = 1.38e-23;  // Boltzmann constant
-constexpr double e_0 = 8.85e-14; // Vacuum permittivity
+constexpr double e_0 = 8.85e-12; // Vacuum permittivity
 constexpr double e_si = 11.7 * e_0; // Silicon permittivity
 constexpr double e_ox = 3.9 * e_0; // Oxide permittivity
 constexpr double tau_n = 1e-6;  // Electron lifetime
 constexpr double tau_p = 1e-6;  // Hole lifetime
+constexpr double dampingFactor = 0.25;
 
 // Global variables
 extern double NA, ND;

@@ -3,24 +3,25 @@
 #include "../carrier/carrier.hpp"
 
 // Define global variables (defined in main.cpp, declared as extern in main.hpp)
-double NA = 1e16, ND = 1e16; // Example doping concentrations (adjust as needed)
+double NA = 1e22, ND = 1e16; // Example doping concentrations (adjust as needed)
 double T = 300;  // Temperature in Kelvin (default)
 double Vt = kb * T / q;  // Thermal voltage (calculated from constants)
 int x_points = 500;  // Number of grid points
 int start_SC = 10;   // Starting point for semiconductor region
 std::vector<double> x(x_points, 0);  // Initialize x, all set to 0
 
-int n_VG = 10;
+int n_VG = 20;
 
-double ni = 1.5e10;
-double mu_n = 1360;
-double mu_p = 480;
+double ni = 1.5e10*1e6;
+double mu_n = 0.1360;
+double mu_p = 0.0480;
 double delta_t;
 
 void consistent(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond){
     int iter = 0;
     while (iter < max_iter){
         Matrix temp_V = V, temp_n = n, temp_p = p;
+        std::cout << "Iteration " << iter << std::endl;
         poissonSolver(x, V, n, p, cond);
         carrier(x, V, n, p, cond);
         int time = 0;
@@ -109,7 +110,9 @@ int main(){
         n(i, 0) = pow(ni, 2) / NA;
         p(i, 0) = NA;
     }
+    std::cout << "EQUILIBRIUM\n\n";
     consistent(x, V, n, p, EQUILIBRIUM); // solve for equilibrium
+    save_x_based("csv_files/eq.csv", x, V, n, p, 0);
     
     std::vector<std::pair<double, double>> vg_c_data;
     // Now apply a DC bias
@@ -121,21 +124,30 @@ int main(){
         p.copyColumn(0, 1); // Copies column 0 to 1
         
         V(0, 1) = VG;
+        std::cout << "V_bias = " << VG << std::endl;
+        std::cout << std::endl;
         consistent(x, V, n, p, DC);
 
         V.copyColumn(1, 2); // Copies column 1 to 2
         n.copyColumn(1, 2); // Copies column 1 to 2
         p.copyColumn(1, 2); // Copies column 1 to 2
         
-        V(0, 2) += V(0, 2)/1e3;    // add a small ac
+        V(0, 2) = V(0, 1) + 1e-3 * sin(freq * delta_t);    // add a small ac
+        std::cout << "V_ac_boundary = " << V(0, 2) << std::endl;
+        std::cout << std::endl;
         consistent(x, V, n, p, AC);
 
         // Calculate the capacitance
-        double C = e_ox / (x[1] - x[0]) * (1 - (V(1, 2) - V(1, 1)) / (V(0, 2) - V(0, 1)));
+        //double C = e_ox / (x[1] - x[0]) * (1 - (V(1, 2) - V(1, 1)) / (V(0, 2) - V(0, 1)));
+        // Capacitance computation via E-field difference
+double E_ox_ac = (V(0, 2) - V(1, 2)) / (x[1] - x[0]);
+double E_ox_dc = (V(0, 1) - V(1, 1)) / (x[1] - x[0]);
+double dE = E_ox_ac - E_ox_dc;
+double dVg = V(0, 2) - V(0, 1);
 
+double C = e_ox * dE / dVg;
         vg_c_data.emplace_back(VG, C);
     }
-    save_x_based("csv_files/eq.csv", x, V, n, p, 0);
     save_x_based("csv_files/dc.csv", x, V, n, p, 1);
     save_x_based("csv_files/ac.csv", x, V, n, p, 2);
     save_capacitance_data("csv_files/VG_C.csv", vg_c_data);

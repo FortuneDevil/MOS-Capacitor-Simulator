@@ -32,13 +32,14 @@ void carrierEq(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix&
    F_p(i, 0) = Jac_p(i, i + 1) * p(start_SC + 1 + i + 1, 0) + Jac_p(i, i) * p(start_SC + 1 + i, 0) + Jac_p(i,  i - 1) * p(start_SC + 1 + i - 1, 0); 
 
    }
-
+   
+   //std::cout << "Carrier EQ: " << std::endl;
    delta_n = solver(Jac_n,F_n);
    delta_p = solver(Jac_p,F_p);
 
-   for (int i = 0; i < N; i++) {
-        n(start_SC + 1 + i, 0) += delta_n(i, 0);
-        p(start_SC + 1 + i, 0) += delta_p(i, 0);
+   for (int i = 0; i < N - 1; i++) {
+        n(start_SC + 1 + i, 0) += dampingFactor * delta_n(i, 0);
+        p(start_SC + 1 + i, 0) += dampingFactor * delta_p(i, 0);
     }
     
 }

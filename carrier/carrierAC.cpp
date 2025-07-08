@@ -67,12 +67,13 @@ void carrierAC(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix&
     Jac_p(0, 0) = exp(phi[1] - phi[0]);
 
     // Solve for n, p
+    //std::cout << "Carrier AC: " << std::endl;
     delta_n = solver(Jac_n, F_n);
     delta_p = solver(Jac_p, F_p);
 
-    for(int i = 0; i < N; i++){
+    for(int i = 0; i < N - 1; i++){
         int gi = i + correctionFactor;  // global index
-        n(gi, 2) += delta_n(i, 0);
-        p(gi, 2) += delta_p(i, 0);
+        n(gi, 2) += dampingFactor * delta_n(i, 0);
+        p(gi, 2) += dampingFactor * delta_p(i, 0);
     }
 }

@@ -5,7 +5,7 @@ void poissonSolver(const std::vector<double>& x, Matrix& V, const Matrix& n, con
     Matrix J(N, N);
     Matrix delta_v(N, 1);
     Matrix F(N, 1);
-    int time;
+    int time = 0;
     switch (cond) {
         case EQUILIBRIUM:
             time = 0;
@@ -20,10 +20,11 @@ void poissonSolver(const std::vector<double>& x, Matrix& V, const Matrix& n, con
             break;
     }
     J(0, 0) = 1.0;//starting point 
+    F(0, 0) = 0;
     double delta_x_ox = x[1] - x[0];  //spacing in oxide(const)
     double delta_x_ox_sq = pow(delta_x_ox, 2);//spacing in semiconductor
 
-        for (int i = 1; i < start_SC; i++) {
+    for (int i = 1; i < start_SC; i++) {
         J(i, i - 1) = e_ox / (2*delta_x_ox_sq); //oxide i-1 index for the J matrix 
         J(i, i) = - ( e_ox / delta_x_ox_sq ); //oxide i index for the J matrix 
         J(i, i + 1) = e_ox / (2*delta_x_ox_sq); //oxide i+1 index for the J matrix 
@@ -48,7 +49,7 @@ void poissonSolver(const std::vector<double>& x, Matrix& V, const Matrix& n, con
         double factor = e_si * sqrt(b_x) / delta_x_i_sq;//constant 
         //J matrix (trigonal one) and q is non zero
         J(i, i - 1) = factor * b_x;
-        J(i, i) = - factor * (1 + b_x);
+        J(i, i) = - factor * (1 + b_x) - (n(i, time) + p(i, time)) / Vt;
         J(i, i + 1) = factor;
         //F matrix  J.del = F
         // F = Vmatix + q;
@@ -57,13 +58,42 @@ void poissonSolver(const std::vector<double>& x, Matrix& V, const Matrix& n, con
                   + J(i, i + 1) * V(i + 1, time)
                   + q * (ND - NA + p(i, time) - n(i, time)));
      }
-   // last condition where potential is zero at bulk 
+    // last condition where potential is zero at bulk 
       J(N - 1, N - 1) = 1.0;
       F(N - 1, 0) = 0.0;
-   // gauss(J, delta_v, F);
-   delta_v = solver(J, F);
+/*
+for (int j = 0; j < 3; j++){
+    	    	std::cout << J(0, j) << " ";
+    	    }
+    	    std::cout << std::endl;
+    	    for (int j = -4; j < 1; j++){
+    	    	std::cout << J(N - 1, N - 1 + j) << " ";
+    	    }
+    	    std::cout << std::endl;
+	for (int j = -1; j < 3; j++){
+    	    	std::cout << J(start_SC + 50, j + start_SC + 50) << " ";
+    	    }
+    	    std::cout << std::endl;
+    	    for (int j = -1; j < 3; j++){
+    	    	std::cout << J(1, j + 1) << " ";
+    	    }
+    	    std::cout << std::endl;
+    	    */
+//    std::cout << "Poisson: " << std::endl;
+    delta_v = solver(J, F);
 
-    for (int i = 0; i < N; i++) {
-        V(i, time) += delta_v(i, 0);
+
+    // Final update (use damping)
+    for (int i = N - 2; i > 0; i--) {
+    	if (std::isnan(delta_v(i, 0))) {
+    	    for (int j = 0; j < 10; j++){
+    	    	std::cout << V(j, time) << " ";
+    	    }
+    	    std::cout << std::endl;
+    	    std::cerr << "delta_v[" << i << "] is NaN\n";
+    	    exit(1);
+    	}
+    	V(i, time) += dampingFactor * delta_v(i, 0);
     }
+
 }

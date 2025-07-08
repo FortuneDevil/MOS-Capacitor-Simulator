@@ -3,6 +3,8 @@
 // Bernoulli function = x/(e^x-1)
 double B(double x){
     if(fabs(x) < 1e-6) return 1/(1+x/2);
+    if(x > 700) return 0;
+    if(x < -700) return -x;
     return x/(exp(x)-1);
 }
 
@@ -33,10 +35,16 @@ Matrix solver(Matrix &A, Matrix &b){
             b.swapRows(i, max_row);
         }
 
+        /*
         if (A(i, i) == 0){
-                std::cout << "Can't be solved.\n";
-                return x;
-        }
+                std::cout << "Can't be solved due to row "<< i << std::endl;
+                A(i, i) = 1e-10;
+        } 
+        */
+        if (std::abs(A(i, i)) < 1e-100) {
+		std::cerr << "WARNING: Pivot nearly zero at row " << i << ", A(i,i)=" << A(i,i) << std::endl;
+		A(i, i) = 1e-100;
+	}
         for (int j = i + 1; j < n; j++){
             double factor = A(j, i)/A(i, i);
             for (int k = i; k < n; k++){
