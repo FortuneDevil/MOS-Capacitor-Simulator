@@ -11,6 +11,5 @@ double B(double x);
 
 Matrix solver(Matrix &A, Matrix &b);
 
-double max_relative_error(const Matrix A, const Matrix B);
-
+double max_relative_error(const Matrix& A, const Matrix& B, int col);
 #endif

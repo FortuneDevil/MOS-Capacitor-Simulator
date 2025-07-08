@@ -1,11 +1,24 @@
 #include "poisson.hpp"
 
-void poisson(const std::vector<double>& x, Matrix& V, const Matrix& n, const Matrix& p, int time, int start_SC) {
+void poissonSolver(const std::vector<double>& x, Matrix& V, const Matrix& n, const Matrix& p, Condition cond){
     int N = V.size(); //  V is a column matrix with V.rows = N
     Matrix J(N, N);
     Matrix delta_v(N, 1);
     Matrix F(N, 1);
-
+    int time;
+    switch (cond) {
+        case EQUILIBRIUM:
+            time = 0;
+            break;
+        case DC:
+            time = 1;
+            break;
+        case AC:
+            time = 2;
+            break;
+        default:
+            break;
+    }
     J(0, 0) = 1.0;//starting point 
     double delta_x_ox = x[1] - x[0];  //spacing in oxide(const)
     double delta_x_ox_sq = pow(delta_x_ox, 2);//spacing in semiconductor

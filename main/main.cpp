@@ -10,6 +10,8 @@ int x_points = 500;  // Number of grid points
 int start_SC = 10;   // Starting point for semiconductor region
 std::vector<double> x(x_points, 0);  // Initialize x, all set to 0
 
+int n_VG = 10;
+
 double ni = 1.5e10;
 double mu_n = 1360;
 double mu_p = 480;
@@ -21,9 +23,23 @@ void consistent(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, C
         Matrix temp_V = V, temp_n = n, temp_p = p;
         poissonSolver(x, V, n, p, cond);
         carrier(x, V, n, p, cond);
-        if (max_relative_error(V, temp_V) < tol_V &&
-            max_relative_error(n, temp_n) < tol_np &&
-            max_relative_error(p, temp_p) < tol_np){
+        int time = 0;
+        switch (cond) {
+            case EQUILIBRIUM:
+                time = 0;
+                break;
+            case DC:
+                time = 1;
+                break;
+            case AC:
+                time = 2;
+                break;
+            default:
+                break;
+        }
+        if (max_relative_error(V, temp_V, time) < tol_V &&
+            max_relative_error(n, temp_n, time) < tol_np &&
+            max_relative_error(p, temp_p, time) < tol_np){
                 std::cout << "Converged at iteration " << iter << std::endl;
                 break;
         }
@@ -119,9 +135,9 @@ int main(){
 
         vg_c_data.emplace_back(VG, C);
     }
-    save_x_based("../csv_files/eq.csv", x, V, n, p, 0);
-    save_x_based("../csv_files/dc.csv", x, V, n, p, 1);
-    save_x_based("../csv_files/ac.csv", x, V, n, p, 2);
-    save_capacitance_data("../csv_files/VG_C.csv", vg_c_data);
+    save_x_based("csv_files/eq.csv", x, V, n, p, 0);
+    save_x_based("csv_files/dc.csv", x, V, n, p, 1);
+    save_x_based("csv_files/ac.csv", x, V, n, p, 2);
+    save_capacitance_data("csv_files/VG_C.csv", vg_c_data);
     return 0;
 }

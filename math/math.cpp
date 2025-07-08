@@ -56,7 +56,7 @@ Matrix solver(Matrix &A, Matrix &b){
     return x;
 }
 
-double max_relative_error(const Matrix& A, const Matrix& B) {
+double max_relative_error(const Matrix& A, const Matrix& B, int col) {
     if (A.size() != B.size()) {
         throw std::invalid_argument("Matrix sizes must match for error calculation");
     }
@@ -65,17 +65,14 @@ double max_relative_error(const Matrix& A, const Matrix& B) {
 
     // Loop through each element of the matrices
     for (int i = 0; i < A.size(); ++i) {
-        for (int j = 0; j < A.size(); ++j) {
-            // Avoid division by zero in case of very small elements in B
-            if (A(i, j) != 0) {
-                double rel_error = std::fabs(1 - std::fabs(B(i, j)/A(i, j)));
-                max_rel_error = std::max(max_rel_error, rel_error);  // Update the maximum relative error
-            } else if (B(i, j) != 0){
-                double rel_error = std::fabs(1 - std::fabs(A(i, j)/B(i, j)));
-                max_rel_error = std::max(max_rel_error, rel_error);  // Update the maximum relative error
-            }
+        // Avoid division by zero in case of very small elements in B
+        if (A(i, col) != 0) {
+            double rel_error = std::fabs(1 - std::fabs(B(i, col)/A(i, col)));
+            max_rel_error = std::max(max_rel_error, rel_error);  // Update the maximum relative error
+        } else if (B(i, col) != 0){
+            double rel_error = std::fabs(1 - std::fabs(A(i, col)/B(i, col)));
+            max_rel_error = std::max(max_rel_error, rel_error);  // Update the maximum relative error
         }
     }
-
     return max_rel_error;
 }

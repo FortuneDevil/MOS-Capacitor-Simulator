@@ -1,8 +1,6 @@
 #include "carrier.hpp"
 
-
-
-void carrier(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix& p){
+void carrierEq(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix& p){
     int N = V.size() - start_SC - 1;
     Matrix F_n(N, 1), F_p(N, 1);
     Matrix delta_n(N, 1), delta_p(N, 1);
