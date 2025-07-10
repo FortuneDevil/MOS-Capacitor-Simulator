@@ -44,7 +44,7 @@ This is a C++ based simulation tool to compute the **C–V characteristics of a 
   - Crank–Nicolson for time-domain simulation (AC)
 - **Capacitance Calculation**: $`C = \frac{dQ}{dV_G}`$
 
-More Details are in reports folder.
+More Details are in equations folder.
 
 ---
 

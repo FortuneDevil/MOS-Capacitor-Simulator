@@ -30,7 +30,7 @@ plt.figure(figsize=(10, 6))
 # Plot Voltage vs x
 plt.subplot(3, 1, 1)  # 3 rows, 1 column, 1st plot
 #plt.plot(x, V, label="Voltage (V)", color="b")
-plt.semilogx(x, V, label="V", color="b")
+plt.plot(x, V, label="V", color="b")
 plt.xlabel("x (m)")
 plt.ylabel("Voltage (V)")
 plt.title("Voltage vs x")
@@ -39,7 +39,7 @@ plt.legend()
 
 # Plot Electron Concentration vs x
 plt.subplot(3, 1, 2)  # 3 rows, 1 column, 2nd plot
-plt.semilogx(x, n, label="n", color="g")
+plt.plot(x, n, label="n", color="g")
 plt.xlabel("x (m)")
 plt.ylabel("n (cm^3)")
 plt.title("Electron Concentration vs x")
@@ -48,7 +48,7 @@ plt.legend()
 
 # Plot Hole Concentration vs x
 plt.subplot(3, 1, 3)  # 3 rows, 1 column, 3rd plot
-plt.semilogx(x, p, label="p", color="r")
+plt.plot(x, p, label="p", color="r")
 plt.xlabel("x (m)")
 plt.ylabel("p (cm^3)")
 plt.title("Hole Concentration vs x")
@@ -57,6 +57,6 @@ plt.legend()
 
 # Adjust layout and show the plot
 plt.tight_layout()
-# plt.show()
-plt.savefig("../figs/ac.png")
+plt.show()
+#plt.savefig("../figs/ac.png")
 
