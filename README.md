@@ -8,8 +8,6 @@ This is a C++ based simulation tool to compute the **C–V characteristics of a 
 - [Physics and Numerical Methods Used](#physics-and-numerical-methods-used)
 - [Getting Started](#getting-started)
 - [Run Simulation](#run-simulation)
-- [Example Plots](#example-plots)
-- [References](#references)
 
 ---
 
@@ -46,6 +44,8 @@ This is a C++ based simulation tool to compute the **C–V characteristics of a 
   - Crank–Nicolson for time-domain simulation (AC)
 - **Capacitance Calculation**: $`C = \frac{dQ}{dV_G}`$
 
+More Details are in reports folder.
+
 ---
 
 ## Getting Started
@@ -75,34 +75,36 @@ This is a C++ based simulation tool to compute the **C–V characteristics of a 
 
 1. **Edit the input parameters**:
 
-   - Modify the `main.c` or relevant input file to set device parameters, mesh, voltages, and simulation settings.
+   - Modify the `main.cpp` and `main.hpp' to set device parameters, mesh, voltages, and simulation settings.
 
 2. **Run the simulator**:
 
-   ```bash
-   ./mos_sim
-   ```
-
-   - This produces output files such as `CV_data.csv`, `profile_V.csv`, etc.
-
-3. **Post-process and plot (Python)**:
-
-   - Go to the `python` directory (if provided) and run:
+   - If you make any changes in any of the hpp files, or if you want to remove all and run again from starting,
 
      ```bash
-     python3 plot/plot_cv.py
+     make clean
+     make
      ```
+   - If you just make changes in .cpp files, there is no need to run make clean.
+     ```bash
+     make
+     ```
+   
+   ```bash
+   ./moscap_sim
+   ```
 
-   - You may plot potential, carrier profiles, or C–V curves using the provided scripts.
+   - This produces output files such as `VG-C.csv`, `eq.csv`, `cc.csv` and `ac.csv` in csv_files folder.
 
----
+4. **Post-process and plot (Python)**:
 
-## Example Plots
+   - Go to the directory `plot' and run:
 
-*(Insert sample plots of C–V characteristic and potential profile here)*
+     ```bash
+     ./plot.sh
+     ```
+     This generates the plots of all modes and CV plot in folder figs.
 
----
-
-## References
+   - You may plot potential, carrier profiles, or C–V curves using the provided scripts individually.
 
 ---
