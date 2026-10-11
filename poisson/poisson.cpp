@@ -17,6 +17,7 @@ double poissonSolver(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix&
         double e_minus = (i <= start_SC) ? e_ox : e_si; // permittivity between nodes i-1 and i
         double e_plus = (i < start_SC) ? e_ox : e_si;   // permittivity between nodes i and i+1
         double h = controlVolume(x, i);                 // zero in the oxide, so no charge there
+        double sheet = (i == start_SC) ? Q_f : 0;       // fixed oxide charge sits at the interface
 
         J(i, i - 1) = e_minus / delta_x_minus;
         J(i, i + 1) = e_plus / delta_x_i;
@@ -24,7 +25,7 @@ double poissonSolver(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix&
 
         F[i] = -(e_minus * (V(i - 1, time) - V(i, time)) / delta_x_minus
                + e_plus * (V(i + 1, time) - V(i, time)) / delta_x_i
-               + q * h * (ND - NA + p(i, time) - n(i, time)));
+               + q * h * (ND - NA + p(i, time) - n(i, time)) + sheet);
     }
 
     std::vector<double> delta_v = solveBanded(J, F);

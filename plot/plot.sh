@@ -11,3 +11,9 @@ python3 plot_ac.py
 
 echo "Plotting VG - C"
 python3 cv.py
+
+echo "Plotting VG - G"
+python3 gv.py
+
+echo "Plotting f - C, G"
+python3 cf.py

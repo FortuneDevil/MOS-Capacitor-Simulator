@@ -21,9 +21,14 @@ constexpr double e_ox = 3.9 * e_0; // Oxide permittivity
 constexpr double tau_n = 1e-6;  // Electron lifetime
 constexpr double tau_p = 1e-6;  // Hole lifetime
 constexpr double pi = 3.14159265358979323846;
+constexpr double chi_si = 4.05; // Electron affinity of silicon (V)
+constexpr double E_g = 1.12;    // Band gap of silicon (eV)
+constexpr double max_step = 0.1; // Largest change of gate voltage between two steady-state solutions (V)
 
 // Global variables
-extern double NA, ND;
+extern double NA, ND;          // Doping: NA > ND gives a p-type substrate, ND > NA an n-type one
+extern double phi_m;           // Gate work function (V)
+extern double Q_f;             // Fixed oxide charge at the interface (C/m^2)
 extern double T;               // Temperature in Kelvin (default 300)
 extern double Vt;              // Thermal voltage
 extern int x_points;           // Number of grid intervals (grid nodes are 0..x_points)
@@ -45,9 +50,16 @@ double controlVolume(const std::vector<double>& x, int i);
 
 void consistent(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond);
 
+// Moves the gate node to potential V_gate in steps of at most max_step, each one starting from the last solution
+void rampGate(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond, double V_gate);
+
 void save_x_based(const std::string& filename, const std::vector<double>& x, const Matrix& V, const Matrix& n, const Matrix& p, int time_step);
 void save_ac(const std::string& filename, const std::vector<double>& x, const std::vector<std::complex<double>>& V_ac,
              const std::vector<std::complex<double>>& n_ac, const std::vector<std::complex<double>>& p_ac);
-void save_capacitance_data(const std::string& filename, const std::vector<double>& freqs, const std::vector<std::vector<double>>& data);
+// Bias sweep: one row per VG, one column of `quantity` per frequency
+void save_capacitance_data(const std::string& filename, const std::string& quantity, const std::vector<double>& freqs,
+                           const std::vector<std::vector<double>>& data);
+// Frequency sweep: one row per frequency, columns C and G/w for each VG
+void save_frequency_sweep(const std::string& filename, const std::vector<double>& biases, const std::vector<std::vector<double>>& data);
 
 #endif

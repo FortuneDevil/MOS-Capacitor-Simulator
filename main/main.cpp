@@ -3,7 +3,10 @@
 #include "../carrier/carrier.hpp"
 
 // Define global variables (defined in main.cpp, declared as extern in main.hpp)
-double NA = 1e22, ND = 1e16; // Example doping concentrations (adjust as needed)
+// Doping concentrations (adjust as needed). NA > ND gives a p-type substrate, ND > NA an n-type one.
+double NA = 1e22, ND = 1e16;
+double phi_m = 4.1;         // Gate work function (V). 4.1 is aluminium.
+double Q_f = q * 1e15;      // Fixed oxide charge at the interface (C/m^2). Here 1e15 charges/m^2.
 double T = 300;  // Temperature in Kelvin (default)
 double Vt = kb * T / q;  // Thermal voltage (calculated from constants)
 int x_points = 500;  // Number of grid intervals
@@ -36,6 +39,16 @@ void consistent(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, C
         iter++;
     }
     std::cerr << "WARNING: not converged after " << max_iter << " iterations" << std::endl;
+}
+
+void rampGate(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond, double V_gate){
+    int time = (cond == DC) ? 1 : 0;
+    int steps = std::max(1, (int)ceil(fabs(V_gate - V(0, time)) / max_step));
+    double step = (V_gate - V(0, time)) / steps;
+    for (int k = 1; k <= steps; k++){
+        V(0, time) = (k == steps) ? V_gate : V(0, time) + step;
+        consistent(x, V, n, p, cond);
+    }
 }
 
 void save_x_based(const std::string& filename, const std::vector<double>& x, const Matrix& V, const Matrix& n, const Matrix& p, int time_step) {
@@ -92,16 +105,17 @@ void save_ac(const std::string& filename, const std::vector<double>& x, const st
     std::cout << "Data saved to " << filename << std::endl;
 }
 
-void save_capacitance_data(const std::string& filename, const std::vector<double>& freqs, const std::vector<std::vector<double>>& data) {
+void save_capacitance_data(const std::string& filename, const std::string& quantity, const std::vector<double>& freqs,
+                           const std::vector<std::vector<double>>& data) {
     std::ofstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open " << filename << " for writing.\n";
         return;
     }
 
-    // One capacitance column per frequency
+    // One column per frequency
     file << "VG";
-    for (double f : freqs) file << ",C (f = " << f << " Hz)";
+    for (double f : freqs) file << "," << quantity << " (f = " << f << " Hz)";
     file << "\n";
     for (const auto& row : data) {
         file << std::scientific << std::setprecision(6) << row[0];
@@ -110,7 +124,28 @@ void save_capacitance_data(const std::string& filename, const std::vector<double
     }
 
     file.close();
-    std::cout << "Capacitance data saved to " << filename << std::endl;
+    std::cout << quantity << " data saved to " << filename << std::endl;
+}
+
+void save_frequency_sweep(const std::string& filename, const std::vector<double>& biases, const std::vector<std::vector<double>>& data) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open " << filename << " for writing.\n";
+        return;
+    }
+
+    // Two columns per bias: capacitance and conductance / omega
+    file << "f";
+    for (double VG : biases) file << ",C (VG = " << VG << " V),G/w (VG = " << VG << " V)";
+    file << "\n";
+    for (const auto& row : data) {
+        file << std::scientific << std::setprecision(6) << row[0];
+        for (size_t k = 1; k < row.size(); k++) file << "," << row[k];
+        file << "\n";
+    }
+
+    file.close();
+    std::cout << "Frequency sweep saved to " << filename << std::endl;
 }
 
 int main(){
@@ -139,8 +174,16 @@ int main(){
         n(i, 0) = n_bulk;
         p(i, 0) = p_bulk;
     }
+
+    // Work function difference between gate and semiconductor. The semiconductor work function is
+    // chi + (Ec - Ef)/q, with the Fermi level set by the bulk doping.
+    double phi_s = chi_si + E_g / 2 - Vt * log(n_bulk / ni);
+    double phi_ms = phi_m - phi_s;
+    // V is measured from the bulk, so a gate voltage VG puts the gate node at VG - phi_ms
+    std::cout << "phi_ms = " << phi_ms << " V, flat-band voltage = " << phi_ms - Q_f * t_ox / e_ox << " V\n";
+
     std::cout << "EQUILIBRIUM\n\n";
-    consistent(x, V, n, p, EQUILIBRIUM); // solve for equilibrium
+    rampGate(x, V, n, p, EQUILIBRIUM, 0 - phi_ms); // solve for equilibrium (VG = 0)
     save_x_based("csv_files/eq.csv", x, V, n, p, 0);
 
     // Start the DC solution from equilibrium
@@ -148,33 +191,50 @@ int main(){
     n.copyColumn(0, 1); // Copies column 0 to 1
     p.copyColumn(0, 1); // Copies column 0 to 1
 
-    std::vector<std::vector<double>> vg_c_data;
+    // Capacitance C and conductance over omega G/w versus VG, one column per frequency
+    std::vector<std::vector<double>> vg_c_data, vg_g_data;
     std::vector<std::complex<double>> V_ac, n_ac, p_ac;
     // Now apply a DC bias
-    double VG, VG_u = 4, VG_l = -2; // VG ranges from VG_l to VG_u
-    double max_step = 0.1;  // largest change of gate voltage between two DC solutions
+    double VG, VG_u = 4, VG_l = -4; // VG ranges from VG_l to VG_u
     for (int i = 0; i < n_VG; i++){
         VG = VG_l + (VG_u - VG_l) * i / (n_VG - 1);
         std::cout << "V_bias = " << VG << std::endl;
+        rampGate(x, V, n, p, DC, VG - phi_ms);
 
-        // Move the gate from the previous bias to VG in small steps, each one starting from the last solution
-        int steps = std::max(1, (int)ceil(fabs(VG - V(0, 1)) / max_step));
-        double step = (VG - V(0, 1)) / steps;
-        for (int k = 1; k <= steps; k++){
-            V(0, 1) = (k == steps) ? VG : V(0, 1) + step;
-            consistent(x, V, n, p, DC);
-        }
-
-        // Small-signal AC analysis around this DC solution
-        std::vector<double> row = {VG};
+        // Small-signal AC analysis around this DC solution.
+        // The admittance is j w C_complex, so C = Re(C_complex) and G/w = -Im(C_complex).
+        std::vector<double> row_c = {VG}, row_g = {VG};
         for (double f : freqs){
             std::complex<double> C = smallSignalAC(x, V, n, p, 2 * pi * f, V_ac, n_ac, p_ac);
-            row.push_back(C.real());
+            row_c.push_back(C.real());
+            row_g.push_back(-C.imag());
         }
-        vg_c_data.push_back(row);
+        vg_c_data.push_back(row_c);
+        vg_g_data.push_back(row_g);
     }
     save_x_based("csv_files/dc.csv", x, V, n, p, 1);
     save_ac("csv_files/ac.csv", x, V_ac, n_ac, p_ac);
-    save_capacitance_data("csv_files/VG_C.csv", freqs, vg_c_data);
+    save_capacitance_data("csv_files/VG_C.csv", "C", freqs, vg_c_data);
+    save_capacitance_data("csv_files/VG_G.csv", "G/w", freqs, vg_g_data);
+
+    // Frequency sweep at a few fixed gate voltages
+    std::vector<double> sweep_VG = {-2, -0.5, 0, 4};
+    double f_min = 1e-4, f_max = 1e7;   // Hz
+    int points_per_decade = 10;
+    int n_f = (int)round(log10(f_max / f_min) * points_per_decade) + 1;
+    std::vector<std::vector<double>> f_data(n_f);
+    for (int k = 0; k < n_f; k++){
+        f_data[k] = {f_min * pow(10.0, (double)k / points_per_decade)};
+    }
+    for (double bias : sweep_VG){
+        std::cout << "Frequency sweep at V_bias = " << bias << std::endl;
+        rampGate(x, V, n, p, DC, bias - phi_ms);
+        for (int k = 0; k < n_f; k++){
+            std::complex<double> C = smallSignalAC(x, V, n, p, 2 * pi * f_data[k][0], V_ac, n_ac, p_ac);
+            f_data[k].push_back(C.real());
+            f_data[k].push_back(-C.imag());
+        }
+    }
+    save_frequency_sweep("csv_files/f_C.csv", sweep_VG, f_data);
     return 0;
 }

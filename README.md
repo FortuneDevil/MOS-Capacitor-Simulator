@@ -16,7 +16,10 @@ This is a C++ based simulation tool to compute the **C–V characteristics of a 
 - Non-uniform meshing for oxide and semiconductor. More data points near the oxide-semiconductor interface and less points in bulk.
 - Poisson equation solver for electrostatics.
 - Drift-diffusion solver for carrier concentrations using Scharfetter–Gummel discretization.
+- p-type or n-type substrate (`NA > ND` or `ND > NA` in `main.cpp`).
+- Gate work function `phi_m` and fixed oxide charge `Q_f`, which set the flat-band voltage.
 - Small-signal AC analysis (linearised around each DC bias point) at any frequency.
+- Conductance `G/w`, and frequency sweeps of C and `G/w` at fixed gate voltages.
 - Low-frequency and high-frequency C–V curves from $`C = \mathrm{Re}(\tilde{Q}/\tilde{v})`$.
 - Python scripts for plotting C–V characteristics and profiles.
 
@@ -117,6 +120,8 @@ All Windows build output stays inside `windows/`, so the Linux build files in th
      - `dc.csv`: V, n, p at the last DC bias.
      - `ac.csv`: real and imaginary parts of the AC phasors of V, n, p at the last bias, per volt of gate signal.
      - `VG_C.csv`: capacitance per unit area versus gate voltage, one column per frequency (set by `freqs` in `main.cpp`).
+     - `VG_G.csv`: conductance over angular frequency `G/w` versus gate voltage, same layout.
+     - `f_C.csv`: C and `G/w` versus frequency, at the gate voltages set by `sweep_VG` in `main.cpp`.
 
 4. **Post-process and plot (Python)**:
 
@@ -125,7 +130,7 @@ All Windows build output stays inside `windows/`, so the Linux build files in th
      ```bash
      ./plot.sh
      ```
-     This generates the plots of all modes and CV plot in folder figs.
+     This generates the plots of all modes, the C–V plot (`cv.png`), the conductance plot (`gv.png`) and the frequency sweep (`cf.png`) in folder figs.
 
    - You may plot potential, carrier profiles, or C–V curves using the provided scripts individually.
 

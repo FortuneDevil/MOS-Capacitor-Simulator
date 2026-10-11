@@ -1,7 +1,8 @@
 #include "carrier.hpp"
 #include <array>
 
-// Extended precision: the AC fluxes are many orders of magnitude larger than the j*omega terms they balance
+// Extended precision, as a safety margin: the AC fluxes are many orders of magnitude larger than the
+// j*omega terms they balance (double already gives the same results for the default device)
 typedef long double Real;
 typedef std::complex<Real> Complex;
 typedef std::array<Complex, 3> Vec3;                // (V_ac, n_ac, p_ac) of one node
@@ -75,7 +76,11 @@ std::complex<double> smallSignalAC(const std::vector<double>& x, const Matrix& V
     const Real vt = Vt;
     const Complex jw(0, omega);
 
-    // With X_i = (V_ac, n_ac, p_ac) at node i, the three linearised equations of node i read
+    // The unknowns at node i are X_i = (V_ac, Wn, Wp), where Wn and Wp are the AC quasi-Fermi potentials:
+    //   n_ac = n0 (V_ac - Wn) / Vt,   p_ac = p0 (Wp - V_ac) / Vt
+    // No DC current flows in a MOS capacitor, so in these variables the drift and diffusion parts of the
+    // AC currents combine into a plain conductance times the difference of Wn (or Wp) across each element.
+    // The three linearised equations of node i then read
     //   F(i) - F(i-1) - local[i] * X_i = 0,   F(i) = up[i] * X_(i+1) - down[i] * X_i
     // where F(i) holds the AC fluxes (displacement, electron, hole) between nodes i and i + 1.
     std::vector<Mat3> up(N, zeroMat()), down(N, zeroMat()), local(N, zeroMat());
@@ -85,40 +90,40 @@ std::complex<double> smallSignalAC(const std::vector<double>& x, const Matrix& V
         Real delta_x_i = x[gi + 1] - x[gi];
         Real dphi = ((Real)V(gi + 1, 1) - (Real)V(gi, 1)) / vt;
         Real B_plus = bernoulli(dphi), B_minus = bernoulli(-dphi);
-        Real dB_plus = dBernoulli(dphi), dB_minus = dBernoulli(-dphi);
 
         // Poisson: e_si * (V_(i+1) - V_i) / delta_x
         up[i][0][0] = down[i][0][0] = (Real)e_si / delta_x_i;
 
-        // Electron flux: nfactor * [B(dphi) n_(i+1) - B(-dphi) n_i + g_n (V_(i+1) - V_i) / Vt]
-        Real nfactor = vt * mu_n / delta_x_i;
-        Real g_n = dB_plus * n(gi + 1, 1) + dB_minus * n(gi, 1);
-        up[i][1][1] = nfactor * B_plus;
-        down[i][1][1] = nfactor * B_minus;
-        up[i][1][0] = down[i][1][0] = nfactor * g_n / vt;
+        // Electrons: conductance * (Wn_(i+1) - Wn_i). With zero DC current B(dphi) n_(i+1) = B(-dphi) n_i.
+        Real n_face = (B_plus * n(gi + 1, 1) + B_minus * n(gi, 1)) / 2;
+        up[i][1][1] = down[i][1][1] = mu_n * n_face / delta_x_i;
 
-        // Hole flux (taken towards node i): pfactor * [B(-dphi) p_(i+1) - B(dphi) p_i - g_p (V_(i+1) - V_i) / Vt]
-        Real pfactor = vt * mu_p / delta_x_i;
-        Real g_p = dB_plus * p(gi, 1) + dB_minus * p(gi + 1, 1);
-        up[i][2][2] = pfactor * B_minus;
-        down[i][2][2] = pfactor * B_plus;
-        up[i][2][0] = down[i][2][0] = - pfactor * g_p / vt;
+        // Holes: conductance * (Wp_(i+1) - Wp_i). With zero DC current B(-dphi) p_(i+1) = B(dphi) p_i.
+        Real p_face = (B_minus * p(gi + 1, 1) + B_plus * p(gi, 1)) / 2;
+        up[i][2][2] = down[i][2][2] = mu_p * p_face / delta_x_i;
 
-        // Charge in Poisson's equation
         Real h = controlVolume(x, gi);
-        local[i][0][1] = q * h;
-        local[i][0][2] = - q * h;
+        Real n0 = n(gi, 1), p0 = p(gi, 1);
+        Real dn = h * n0 / vt, dp = h * p0 / vt;    // h * n_ac = dn * (V_ac - Wn),  h * p_ac = dp * (Wp - V_ac)
+
+        // Charge in Poisson's equation: q h (p_ac - n_ac)
+        local[i][0][0] = q * (dn + dp);
+        local[i][0][1] = - q * dn;
+        local[i][0][2] = - q * dp;
 
         // Linearised SRH recombination R_ac = r_n n_ac + r_p p_ac, and the j*omega storage term
-        Real n0 = n(gi, 1), p0 = p(gi, 1);
         Real srh = tau_p * (n0 + ni) + tau_n * (p0 + ni);
         Real R0 = (n0 * p0 - (Real)ni * ni) / srh;
         Real r_n = (p0 - R0 * tau_p) / srh;
         Real r_p = (n0 - R0 * tau_n) / srh;
-        local[i][1][1] = h * (r_n + jw);
-        local[i][1][2] = h * r_p;
-        local[i][2][1] = h * r_n;
-        local[i][2][2] = h * (r_p + jw);
+        // Electrons: + h (R_ac + jw n_ac)
+        local[i][1][0] = - ((r_n + jw) * dn - r_p * dp);
+        local[i][1][1] = (r_n + jw) * dn;
+        local[i][1][2] = - r_p * dp;
+        // Holes: - h (R_ac + jw p_ac)
+        local[i][2][0] = r_n * dn - (r_p + jw) * dp;
+        local[i][2][1] = - r_n * dn;
+        local[i][2][2] = (r_p + jw) * dp;
     }
 
     // Forward Elimination, never subtracting the large fluxes from each other.
@@ -154,8 +159,8 @@ std::complex<double> smallSignalAC(const std::vector<double>& x, const Matrix& V
     for (int i = 0; i < N; i++){
         int gi = i + start_SC;  // global index
         V_ac[gi] = toDouble(X[i][0]);
-        n_ac[gi] = toDouble(X[i][1]);
-        p_ac[gi] = toDouble(X[i][2]);
+        n_ac[gi] = toDouble((Real)n(gi, 1) * (X[i][0] - X[i][1]) / vt);
+        p_ac[gi] = toDouble((Real)p(gi, 1) * (X[i][2] - X[i][0]) / vt);
     }
     // In the oxide the AC potential falls linearly from the gate to the interface
     for (int i = 0; i < start_SC; i++){

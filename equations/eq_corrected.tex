@@ -11,7 +11,7 @@
 \maketitle
 
 \section{Model and notation}
-The structure is gate -- oxide -- p-type silicon -- grounded bulk contact, in one dimension $x$.
+The structure is gate -- oxide -- silicon (p-type or n-type) -- grounded bulk contact, in one dimension $x$.
 \begin{align}
 V_t &= \frac{kT}{q}, & \phi &= \frac{V}{V_t}, & E &= -\frac{dV}{dx}
 \end{align}
@@ -60,11 +60,25 @@ J_{p,i+\half} &= \frac{kT\mu_p}{\Delta x_i}\,B(\dphi{i})\left(p_i-p_{i+1}e^{\dph
 Integrating over the control volume of node $i$ (there is no charge in the oxide, where $h_i=0$):
 \begin{align}
 F_i \equiv \varepsilon_{i+\half}\frac{V_{i+1}-V_i}{\Delta x_i}-\varepsilon_{i-\half}\frac{V_i-V_{i-1}}{\Delta x_{i-1}}
-+q\,h_i\left(N_D-N_A+p_i-n_i\right)=0 \label{eq:poisson}
++q\,h_i\left(N_D-N_A+p_i-n_i\right)+Q_f\,\delta_{i,s}=0 \label{eq:poisson}
 \end{align}
 where $\varepsilon_{i+\half}=\varepsilon_{ox}$ for $i<s$ and $\varepsilon_{si}$ for $i\ge s$. At the interface
-node $i=s$ the two permittivities differ, which enforces continuity of $\varepsilon E$.
-Boundary conditions: $V_0=V_G$ and $V_N=0$.
+node $i=s$ the two permittivities differ, which enforces continuity of $\varepsilon E$; the fixed oxide
+charge $Q_f$ (per unit area) sits at this node only.
+
+Boundary conditions. $V$ is measured from the bulk, so $V_N=0$. The gate and the semiconductor have
+different work functions, so a gate voltage $V_G$ puts the gate node at
+\begin{align}
+V_0=V_G-\phi_{ms},\qquad \phi_{ms}=\phi_m-\phi_s,\qquad
+\phi_s=\chi+\frac{E_g}{2q}-V_t\ln\frac{n_{bulk}}{n_{int}}
+\end{align}
+with $\phi_m$ the gate work function, $\chi$ the electron affinity and $n_{bulk}$ the electron
+concentration at the bulk contact. This covers both substrate types: $N_A>N_D$ is p-type
+($n_{bulk}<n_{int}$) and $N_D>N_A$ is n-type. The bands are flat ($V=0$ everywhere) at the flat-band voltage
+\begin{align}
+V_{FB}=\phi_{ms}-\frac{Q_f}{C_{ox}},\qquad C_{ox}=\frac{\varepsilon_{ox}}{t_{ox}}
+\end{align}
+Equilibrium is $V_G=0$, which is no longer the flat-band condition.
 
 The equation is non-linear because $n$ and $p$ depend exponentially on $V$. One Newton step
 $J\,\Delta V=-F$ is taken with the carriers following the potential at fixed quasi-Fermi levels,
@@ -206,13 +220,31 @@ the capacitor $C_{ox}=\varepsilon_{ox}/t_{ox}$ between gate and interface.
 \end{itemize}
 
 \subsection{Solution}
-The AC problem is linear, so it is solved once per bias point and frequency, with no iteration. With
-$X_i=(\tilde V_i,\tilde n_i,\tilde p_i)^T$, equations \eqref{eq:poissonac}, \eqref{eq:nac}, \eqref{eq:pac}
-of node $i$ are
+The AC problem is linear, so it is solved once per bias point and frequency, with no iteration.
+$\phi_{ms}$ and $Q_f$ are constants, so they do not appear in the AC equations.
+
+Solving directly for $\tilde n$, $\tilde p$ is badly conditioned in strong inversion, because the drift
+term $g\,\Delta\tilde\phi$ and the diffusion terms of \eqref{eq:jnac} nearly cancel. The code therefore
+uses the AC quasi-Fermi potentials $\tilde W_n$, $\tilde W_p$ as unknowns:
+\begin{align}
+\tilde n=\frac{n_0}{V_t}\left(\tilde V-\tilde W_n\right),\qquad
+\tilde p=\frac{p_0}{V_t}\left(\tilde W_p-\tilde V\right)
+\end{align}
+No DC current flows in a MOS capacitor, so $B(\dphi{0,i})\,n_{0,i+1}=B(-\dphi{0,i})\,n_{0,i}\equiv\bar n_i$,
+and then $g_{n,i}=-\bar n_i$. Likewise $B(\dphi{0,i})\,p_{0,i}=B(-\dphi{0,i})\,p_{0,i+1}\equiv\bar p_i=-g_{p,i}$.
+Inserting these in \eqref{eq:jnac}, \eqref{eq:jpac}, the cancellation is done analytically and the currents
+become plain conductances:
+\begin{align}
+\frac{\tilde J_{n,i+\half}}{q}=-\frac{\mu_n\bar n_i}{\Delta x_i}\left(\tilde W_{n,i+1}-\tilde W_{n,i}\right),\qquad
+\frac{\tilde J_{p,i+\half}}{q}=-\frac{\mu_p\bar p_i}{\Delta x_i}\left(\tilde W_{p,i+1}-\tilde W_{p,i}\right)
+\end{align}
+These are the same equations as \eqref{eq:nac}, \eqref{eq:pac}, \eqref{eq:poissonac}, only written in other
+variables. With $X_i=(\tilde V_i,\tilde W_{n,i},\tilde W_{p,i})^T$, the three equations of node $i$ are
 \begin{align}
 \big(U_iX_{i+1}-D_iX_i\big)-\big(U_{i-1}X_i-D_{i-1}X_{i-1}\big)-L_iX_i=0
 \end{align}
-with $3\times3$ complex matrices: $U_i$, $D_i$ hold the flux coefficients of element $i+\half$ and $L_i$ the
+with $3\times3$ complex matrices: $U_i=D_i=\mathrm{diag}\!\left(\varepsilon_{si},\ \mu_n\bar n_i,\ \mu_p\bar p_i\right)/\Delta x_i$
+hold the flux coefficients of element $i+\half$ and $L_i$ the
 local terms (charge, recombination, $j\omega$). As in the DC case the fluxes are never subtracted from each
 other. After eliminating nodes $s\dots i$, node $i$ obeys $U_iX_{i+1}-(D_i+E_i)X_i=-b_i$ with
 \begin{align}
@@ -220,6 +252,9 @@ E_s&=L_s+\mathrm{diag}(C_{ox},0,0), & b_s&=(C_{ox}\tilde v,0,0)^T\\
 E_{i+1}&=L_{i+1}+E_i\,(D_i+E_i)^{-1}U_i, & b_{i+1}&=D_i\,(D_i+E_i)^{-1}b_i
 \end{align}
 and back substitution $X_i=(D_i+E_i)^{-1}\left(U_iX_{i+1}+b_i\right)$ starting from $X_N=0$.
+
+Two kinds of sweep are done with this solver: a bias sweep ($C$ and $G/\omega$ versus $V_G$ at a few
+frequencies) and a frequency sweep ($C$ and $G/\omega$ versus $f$ at a few gate voltages).
 
 \section{Capacitance}
 The gate charge per unit area is $Q=\varepsilon_{ox}E_{ox}$, so its phasor is
