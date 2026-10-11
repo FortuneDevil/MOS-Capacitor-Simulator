@@ -3,7 +3,10 @@
 
 double poissonSolver(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond){
     int N = V.size(); //  V is a column matrix with V.rows = N
-    int time = (cond == DC) ? 1 : 0;
+    int time = column(cond);
+    // In deep depletion the minority carrier is frozen: it does not follow the potential
+    bool n_follows = !(cond == DEEP_DEPLETION && NA > ND);
+    bool p_follows = !(cond == DEEP_DEPLETION && NA <= ND);
     BandMatrix<double> J(N, 1, 1);
     std::vector<double> F(N, 0.0);
 
@@ -21,7 +24,8 @@ double poissonSolver(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix&
 
         J(i, i - 1) = e_minus / delta_x_minus;
         J(i, i + 1) = e_plus / delta_x_i;
-        J(i, i) = -(e_minus / delta_x_minus + e_plus / delta_x_i) - q * h * (n(i, time) + p(i, time)) / Vt;
+        double following = (n_follows ? n(i, time) : 0) + (p_follows ? p(i, time) : 0);
+        J(i, i) = -(e_minus / delta_x_minus + e_plus / delta_x_i) - q * h * following / Vt;
 
         F[i] = -(e_minus * (V(i - 1, time) - V(i, time)) / delta_x_minus
                + e_plus * (V(i + 1, time) - V(i, time)) / delta_x_i
@@ -41,8 +45,8 @@ double poissonSolver(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix&
         if (fabs(dv) > Vt) dv = (dv > 0 ? 1 : -1) * Vt * log(1 + fabs(dv) / Vt);
 
         V(i, time) += dv;
-        n(i, time) *= exp(dv / Vt);
-        p(i, time) *= exp(-dv / Vt);
+        if (n_follows) n(i, time) *= exp(dv / Vt);
+        if (p_follows) p(i, time) *= exp(-dv / Vt);
         max_change = std::max(max_change, fabs(dv));
     }
     return max_change;

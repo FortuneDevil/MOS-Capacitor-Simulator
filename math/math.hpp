@@ -7,6 +7,7 @@
 #include <cmath>
 #include "matrix.hpp"
 #include "banded.hpp"
+#include "block3.hpp"
 
 // Bernoulli function B(x) = x/(e^x - 1), for any real type
 template <typename T>
@@ -25,8 +26,6 @@ T dBernoulli(T x){
 double B(double x);
 double dB(double x);
 
-Matrix solver(Matrix &A, Matrix &b);
-
 // Solves the tridiagonal system of a steady-state conservation law on nodes 0..N-1:
 //   F(k) - F(k-1) - sink[k] * y[k] = -source[k],  with flux F(k) = up[k] * y[k+1] - down[k] * y[k]
 // between nodes k and k+1, no flux on the left of node 0, and y[N-1] = last_value.
@@ -35,5 +34,4 @@ Matrix solver(Matrix &A, Matrix &b);
 std::vector<double> solveFluxSystem(const std::vector<double>& up, const std::vector<double>& down,
                                     const std::vector<double>& sink, const std::vector<double>& source, double last_value);
 
-double max_relative_error(const Matrix& A, const Matrix& B, int col);
 #endif

@@ -1,4 +1,8 @@
 #!/bin/bash
+# Makes every figure in figs/ from the data in csv_files/. Can be run from any folder.
+
+set -e
+cd "$(dirname "$0")"
 
 echo "Plotting EQUILIBRIUM"
 python3 plot_eq.py
@@ -17,3 +21,9 @@ python3 gv.py
 
 echo "Plotting f - C, G"
 python3 cf.py
+
+echo "Plotting VG - C at different sweep rates"
+python3 cv_sweep.py
+
+echo "Plotting t - C"
+python3 ct.py

@@ -1,23 +1,21 @@
-# Linux build. Run from the repo root: make, then ./moscap_sim (or make run).
+# Linux build. Run from the repo root:
+#   make          -> builds ./moscap_sim
+#   make run      -> builds, then runs the simulator (writes csv_files/)
+#   make plots    -> makes the figures in figs/ from csv_files/
+#   make clean    -> removes o_files/ and moscap_sim
 # For Windows (MSYS2), use windows/makefile instead.
 
 # Compiler and flags
 CXX := g++
-CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Icarrier -Imain -Imath -Ipoisson
+SRC_DIRS := main math poisson carrier ac transient
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra $(addprefix -I, $(SRC_DIRS))
 
 # Folders
-SRC_DIRS := carrier main math poisson
 OBJ_DIR := o_files
 BIN := moscap_sim
 
 # Find all .cpp files
-ALL_SOURCES := $(foreach dir, $(SRC_DIRS), $(wildcard $(dir)/*.cpp))
-
-# Exclude test files (list here any you don't want to compile)
-EXCLUDED_SOURCES := math/testMatrix.cpp math/test.cpp
-
-# Filter out excluded files
-SOURCES := $(filter-out $(EXCLUDED_SOURCES), $(ALL_SOURCES))
+SOURCES := $(foreach dir, $(SRC_DIRS), $(wildcard $(dir)/*.cpp))
 
 # Map source files to object files in o_files/
 OBJECTS := $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(SOURCES))
@@ -34,15 +32,22 @@ $(BIN): $(OBJECTS)
 $(OBJ_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	@echo "Compiling: $< -> $@"
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 # Run the simulator (writes to csv_files/)
 run: $(BIN)
 	./$(BIN)
+
+# Make the figures
+plots:
+	cd plot && ./plot.sh
 
 # Clean
 clean:
 	@echo "Cleaning up..."
 	@rm -rf $(OBJ_DIR) $(BIN)
 
-.PHONY: all run clean
+# Header dependencies written by the compiler (-MMD), so a changed .hpp rebuilds what includes it
+-include $(OBJECTS:.o=.d)
+
+.PHONY: all run plots clean

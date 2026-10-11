@@ -23,7 +23,10 @@ vg, c, labels = read_csv("../csv_files/VG_C.csv")
 # Plot the data
 plt.figure(figsize=(8, 6))
 for k, label in enumerate(labels):
-    plt.plot(vg, c[:, k], marker='o', markersize=3, linestyle='-', label=label)
+    if "deep depletion" in label:
+        plt.plot(vg, c[:, k], linestyle='--', color='k', label=label)
+    else:
+        plt.plot(vg, c[:, k], marker='o', markersize=3, linestyle='-', label=label)
 
 # Customize the plot
 plt.title('Capacitance vs Gate Voltage', fontsize=14)

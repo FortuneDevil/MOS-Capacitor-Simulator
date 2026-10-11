@@ -1,0 +1,283 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\newcommand{\dphi}[1]{\Delta\phi_{#1}}
+\newcommand{\half}{\tfrac{1}{2}}
+\title{MOS Capacitor Simulator\\[4pt]\large Equations as implemented in the code}
+\date{}
+\begin{document}
+\maketitle
+
+\section{Model and notation}
+The structure is gate -- oxide -- silicon (p-type or n-type) -- grounded bulk contact, in one dimension $x$.
+\begin{align}
+V_t &= \frac{kT}{q}, & \phi &= \frac{V}{V_t}, & E &= -\frac{dV}{dx}
+\end{align}
+The grid nodes are $x_0\dots x_N$. Node $0$ is the gate, node $s$ is the oxide--semiconductor interface and
+node $N$ is the bulk contact. The oxide mesh is uniform; in the semiconductor the spacing grows geometrically:
+\begin{align}
+\Delta x_i &= x_{i+1}-x_i, & \Delta x_{s+k} &= a\,b^{k}
+\quad\Longrightarrow\quad x_{s+k} = t_{ox} + a\,\frac{b^{k}-1}{b-1}
+\end{align}
+Each node owns a control volume. Its semiconductor part has width
+\begin{align}
+h_i = \begin{cases} 0 & i<s \quad\text{(oxide)}\\[2pt]
+\half\Delta x_s & i=s \quad\text{(interface: half a cell)}\\[2pt]
+\half\left(\Delta x_{i-1}+\Delta x_i\right) & s<i<N \end{cases}
+\end{align}
+Differences of the normalised potential between neighbouring nodes are written
+$\dphi{i}=\phi_{i+1}-\phi_i$, and $n_{int}$ is the intrinsic carrier concentration.
+
+\section{Current densities (Scharfetter--Gummel)}
+\begin{align}
+J_n &= q\mu_n nE + qD_n\frac{dn}{dx} = kT\mu_n\left(-n\frac{d\phi}{dx}+\frac{dn}{dx}\right)\\
+J_p &= q\mu_p pE - qD_p\frac{dp}{dx} = -kT\mu_p\left(p\frac{d\phi}{dx}+\frac{dp}{dx}\right)
+\end{align}
+The current is a flux between two nodes, so it is defined on the element $i+\half$ between nodes $i$ and
+$i+1$. Taking the potential linear inside an element and writing $n=u\,e^{\phi}$ gives
+$J_n = kT\mu_n e^{\phi}\,du/dx$. Integrating $J_n e^{-\phi}$ over the element with constant $J_n$:
+\begin{align}
+J_{n,i+\half} &= \frac{kT\mu_n}{\Delta x_i}\Big[B(\dphi{i})\,n_{i+1}-B(-\dphi{i})\,n_i\Big] \label{eq:jn}
+\end{align}
+with the Bernoulli function
+\begin{align}
+B(x)=\frac{x}{e^{x}-1}, \qquad B(x)\,e^{x}=B(-x)
+\end{align}
+For holes take $p=u\,e^{-\phi}$, so $J_p=-kT\mu_p e^{-\phi}\,du/dx$ and
+\begin{align}
+J_{p,i+\half} &= \frac{kT\mu_p}{\Delta x_i}\Big[B(\dphi{i})\,p_i-B(-\dphi{i})\,p_{i+1}\Big] \label{eq:jp}
+\end{align}
+
+\subsection{Quasi-Fermi form}
+With the quasi-Fermi potentials $\Phi_n$, $\Phi_p$ defined by
+\begin{align}
+n=n_{int}\exp\!\left(\frac{V-\Phi_n}{V_t}\right),\qquad p=n_{int}\exp\!\left(\frac{\Phi_p-V}{V_t}\right) \label{eq:qf}
+\end{align}
+the currents \eqref{eq:jn}, \eqref{eq:jp} become, exactly,
+\begin{align}
+\frac{J_{n,i+\half}}{q}&=-\frac{V_t\mu_n}{\Delta x_i}\,B(\dphi{i})\,n_{i+1}\left(e^{d_n}-1\right),
+& d_n&=\frac{\Phi_{n,i+1}-\Phi_{n,i}}{V_t} \label{eq:jnqf}\\
+\frac{J_{p,i+\half}}{q}&=-\frac{V_t\mu_p}{\Delta x_i}\,B(\dphi{i})\,p_i\left(e^{d_p}-1\right),
+& d_p&=\frac{\Phi_{p,i+1}-\Phi_{p,i}}{V_t} \label{eq:jpqf}
+\end{align}
+In this form drift and diffusion are never subtracted from each other, so a small net current is computed
+accurately. A current is zero exactly when the quasi-Fermi potential is flat. This form is used in the
+small-signal and transient solvers.
+
+\section{Steady state (equilibrium and DC bias)}
+\subsection{Poisson's equation}
+\begin{align}
+\frac{d}{dx}\left(\varepsilon\frac{dV}{dx}\right) = -\rho, \qquad \rho = q\left(N_D-N_A+p-n\right)
+\end{align}
+Integrating over the control volume of node $i$ (there is no charge in the oxide, where $h_i=0$):
+\begin{align}
+F_i \equiv \varepsilon_{i+\half}\frac{V_{i+1}-V_i}{\Delta x_i}-\varepsilon_{i-\half}\frac{V_i-V_{i-1}}{\Delta x_{i-1}}
++q\,h_i\left(N_D-N_A+p_i-n_i\right)+Q_f\,\delta_{i,s}=0 \label{eq:poisson}
+\end{align}
+where $\varepsilon_{i+\half}=\varepsilon_{ox}$ for $i<s$ and $\varepsilon_{si}$ for $i\ge s$. At the interface
+node $i=s$ the two permittivities differ, which enforces continuity of $\varepsilon E$; the fixed oxide
+charge $Q_f$ (per unit area) sits at this node only.
+
+Boundary conditions. $V$ is measured from the bulk, so $V_N=0$. The gate and the semiconductor have
+different work functions, so a gate voltage $V_G$ puts the gate node at
+\begin{align}
+V_0=V_G-\phi_{ms},\qquad \phi_{ms}=\phi_m-\phi_s,\qquad
+\phi_s=\chi+\frac{E_g}{2q}-V_t\ln\frac{n_{bulk}}{n_{int}}
+\end{align}
+with $\phi_m$ the gate work function, $\chi$ the electron affinity and $n_{bulk}$ the electron
+concentration at the bulk contact. This covers both substrate types: $N_A>N_D$ is p-type
+($n_{bulk}<n_{int}$) and $N_D>N_A$ is n-type. The bands are flat ($V=0$ everywhere) at the flat-band voltage
+\begin{align}
+V_{FB}=\phi_{ms}-\frac{Q_f}{C_{ox}},\qquad C_{ox}=\frac{\varepsilon_{ox}}{t_{ox}}
+\end{align}
+Equilibrium is $V_G=0$, which is in general not the flat-band condition.
+
+The equation is non-linear because $n$ and $p$ depend exponentially on $V$. One Newton step
+$J\,\Delta V=-F$ is taken with the carriers following the potential at fixed quasi-Fermi potentials:
+\begin{align}
+J_{i,i+1} = \frac{\varepsilon_{i+\half}}{\Delta x_{i}},\qquad J_{i,i-1} = \frac{\varepsilon_{i-\half}}{\Delta x_{i-1}},\qquad
+J_{i,i} = -\frac{\varepsilon_{i+\half}}{\Delta x_i}-\frac{\varepsilon_{i-\half}}{\Delta x_{i-1}}-\frac{q\,h_i\,(n_i+p_i)}{V_t}
+\end{align}
+followed by $V\leftarrow V+\Delta V$, $n\leftarrow n\,e^{\Delta V/V_t}$, $p\leftarrow p\,e^{-\Delta V/V_t}$.
+Steps larger than $V_t$ are damped to $\pm V_t\ln\!\left(1+|\Delta V|/V_t\right)$.
+
+\subsection{Carrier continuity}
+\begin{align}
+\frac{\partial n}{\partial t}=\frac1q\frac{\partial J_n}{\partial x}-R,\qquad
+\frac{\partial p}{\partial t}=-\frac1q\frac{\partial J_p}{\partial x}-R \label{eq:continuity}
+\end{align}
+Recombination is Shockley--Read--Hall:
+\begin{align}
+R=\frac{np-n_{int}^2}{S},\qquad S=\tau_p\,(n+n_{int})+\tau_n\,(p+n_{int}) \label{eq:srh}
+\end{align}
+In steady state, integrating over the control volume of node $i$:
+\begin{align}
+\frac1q\left(J_{n,i+\half}-J_{n,i-\half}\right)=h_iR_i,\qquad
+-\frac1q\left(J_{p,i+\half}-J_{p,i-\half}\right)=h_iR_i
+\end{align}
+Inserting \eqref{eq:jn}, \eqref{eq:jp} and dividing by $V_t\mu$, with $S_i$ and the other carrier taken
+from the previous iteration:
+\begin{align}
+\alpha_{i-1}n_{i-1}+\alpha_in_i+\alpha_{i+1}n_{i+1} &= -\frac{h_i\,n_{int}^2}{V_t\mu_nS_i}\\
+\alpha_{i+1}=\frac{B(\dphi{i})}{\Delta x_i},\quad
+\alpha_{i-1}&=\frac{B(-\dphi{i-1})}{\Delta x_{i-1}},\quad
+\alpha_i=-\left[\frac{B(-\dphi{i})}{\Delta x_i}+\frac{B(\dphi{i-1})}{\Delta x_{i-1}}\right]-\frac{h_i\,p_i}{V_t\mu_nS_i}
+\end{align}
+\begin{align}
+\beta_{i-1}p_{i-1}+\beta_ip_i+\beta_{i+1}p_{i+1} &= -\frac{h_i\,n_{int}^2}{V_t\mu_pS_i}\\
+\beta_{i+1}=\frac{B(-\dphi{i})}{\Delta x_i},\quad
+\beta_{i-1}&=\frac{B(\dphi{i-1})}{\Delta x_{i-1}},\quad
+\beta_i=-\left[\frac{B(\dphi{i})}{\Delta x_i}+\frac{B(-\dphi{i-1})}{\Delta x_{i-1}}\right]-\frac{h_i\,n_i}{V_t\mu_pS_i}
+\end{align}
+Boundary conditions:
+\begin{itemize}
+\item Interface ($i=s$): no current enters the oxide, $J_{s-\half}=0$. The equations above are used with the
+$i-1$ terms dropped and $h_s=\half\Delta x_s$.
+\item Bulk contact ($i=N$): $n_N$, $p_N$ keep the charge-neutral equilibrium values, from
+$p-n=N_A-N_D$ and $np=n_{int}^2$.
+\end{itemize}
+Poisson's equation and the two continuity equations are solved one after the other and repeated until
+$V$, $n$ and $p$ stop changing. The gate voltage is moved in steps of at most $0.1$~V, each step starting
+from the previous solution.
+
+\subsection{Solving the continuity equations accurately}\label{sec:flux}
+Both equations have the form
+$\mathcal F_i-\mathcal F_{i-1}-\sigma_iy_i=-g_i$ with flux $\mathcal F_i=u_iy_{i+1}-d_iy_i$ and
+$u_i,d_i,\sigma_i,g_i\ge0$. The fluxes are up to $10^{17}$ times larger than the recombination terms, so
+ordinary Gaussian elimination loses them to round-off. The elimination is therefore arranged so that it
+never subtracts: after eliminating nodes $s\dots i$, node $i$ obeys $u_iy_{i+1}-(d_i+e_i)\,y_i=-b_i$ with
+\begin{align}
+e_s=\sigma_s,\quad b_s=g_s,\qquad
+e_{i+1}=\sigma_{i+1}+\frac{u_i\,e_i}{d_i+e_i},\qquad b_{i+1}=g_{i+1}+\frac{d_i\,b_i}{d_i+e_i}
+\end{align}
+and the back substitution is $y_i=\left(u_iy_{i+1}+b_i\right)/\left(d_i+e_i\right)$.
+
+\subsection{Deep depletion}
+The steady state always contains the inversion layer. If the gate is swept from accumulation
+towards inversion faster than minority carriers can be generated, no inversion layer forms and the
+depletion region keeps widening. This fast-sweep limit is modelled by freezing the minority carrier:
+\begin{itemize}
+\item the sweep starts from the steady state at the accumulation end of the gate-voltage range;
+\item the minority carrier (electrons for p-type, holes for n-type) keeps the profile it has there. It is
+not solved from the continuity equation and not rescaled in the Newton step, so it also drops out of the
+Jacobian: $J_{i,i}$ contains only the majority carrier;
+\item the majority carrier and Poisson's equation are solved as before.
+\end{itemize}
+The capacitance equals the high-frequency one up to threshold and keeps falling beyond it, as
+$C=\left(1/C_{ox}+W/\varepsilon_{si}\right)^{-1}$ with $W$ the depletion width.
+
+\section{Small-signal AC analysis}\label{sec:ac}
+A small sinusoidal signal is added to the DC gate bias, and every quantity is written as its DC value
+(subscript $0$) plus a phasor:
+\begin{align}
+V_G&=V_{DC}+\tilde v\,e^{j\omega t}, & V&=V_0+\tilde V e^{j\omega t}, &
+\Phi_n&=\Phi_{n0}+\tilde W_n e^{j\omega t}, & \Phi_p&=\Phi_{p0}+\tilde W_p e^{j\omega t}
+\end{align}
+Only terms linear in the perturbation are kept, and $\partial/\partial t\to j\omega$. From \eqref{eq:qf}
+the carrier phasors are
+\begin{align}
+\tilde n=\frac{n_0}{V_t}\left(\tilde V-\tilde W_n\right),\qquad
+\tilde p=\frac{p_0}{V_t}\left(\tilde W_p-\tilde V\right)
+\end{align}
+
+\subsection{Linearised equations}
+No DC current flows in a MOS capacitor, so the DC quasi-Fermi potentials are flat ($d_n=d_p=0$) and
+$B(\dphi{0,i})\,n_{0,i+1}=B(-\dphi{0,i})\,n_{0,i}\equiv\bar n_i$,
+$B(\dphi{0,i})\,p_{0,i}=B(-\dphi{0,i})\,p_{0,i+1}\equiv\bar p_i$.
+Linearising \eqref{eq:jnqf}, \eqref{eq:jpqf} then leaves plain conductances:
+\begin{align}
+\frac{\tilde J_{n,i+\half}}{q}=-\frac{\mu_n\bar n_i}{\Delta x_i}\left(\tilde W_{n,i+1}-\tilde W_{n,i}\right),\qquad
+\frac{\tilde J_{p,i+\half}}{q}=-\frac{\mu_p\bar p_i}{\Delta x_i}\left(\tilde W_{p,i+1}-\tilde W_{p,i}\right)
+\end{align}
+Linearising \eqref{eq:srh} around the DC solution ($R_0$, $S_0$ are the DC values):
+\begin{align}
+\tilde R=r_n\tilde n+r_p\tilde p,\qquad r_n=\frac{p_0-R_0\tau_p}{S_0},\qquad r_p=\frac{n_0-R_0\tau_n}{S_0}
+\end{align}
+The three equations of node $i$ are the linearised \eqref{eq:poisson} and \eqref{eq:continuity}:
+\begin{align}
+\varepsilon_{i+\half}\frac{\tilde V_{i+1}-\tilde V_i}{\Delta x_i}-\varepsilon_{i-\half}\frac{\tilde V_i-\tilde V_{i-1}}{\Delta x_{i-1}}
++q\,h_i\left(\tilde p_i-\tilde n_i\right)&=0 \label{eq:poissonac}\\
+-\frac1q\left(\tilde J_{n,i+\half}-\tilde J_{n,i-\half}\right)+h_i\left(\tilde R_i+j\omega\,\tilde n_i\right)&=0 \label{eq:nac}\\
+-\frac1q\left(\tilde J_{p,i+\half}-\tilde J_{p,i-\half}\right)-h_i\left(\tilde R_i+j\omega\,\tilde p_i\right)&=0 \label{eq:pac}
+\end{align}
+$\phi_{ms}$ and $Q_f$ are constants, so they do not appear.
+
+\subsection{Boundary conditions}
+\begin{itemize}
+\item Gate: $\tilde V_0=\tilde v$. The oxide has no charge, so $\tilde V$ is linear in it and the oxide acts as
+the capacitor $C_{ox}$ between gate and interface.
+\item Interface ($i=s$): $\tilde J_{n,s-\half}=\tilde J_{p,s-\half}=0$, with $h_s=\half\Delta x_s$.
+\item Bulk contact ($i=N$): $\tilde V_N=\tilde W_{n,N}=\tilde W_{p,N}=0$.
+\end{itemize}
+
+\subsection{Solution}\label{sec:block}
+The AC problem is linear, so it is solved once per bias point and frequency, with no iteration. With
+$X_i=(\tilde V_i,\tilde W_{n,i},\tilde W_{p,i})^T$, the three equations of node $i$ are
+\begin{align}
+\big(U_iX_{i+1}-D_iX_i\big)-\big(U_{i-1}X_i-D_{i-1}X_{i-1}\big)-L_iX_i=-g_i
+\end{align}
+with $3\times3$ complex matrices: $U_i=D_i=\mathrm{diag}\!\left(\varepsilon_{si},\ \mu_n\bar n_i,\ \mu_p\bar p_i\right)/\Delta x_i$
+hold the flux coefficients of element $i+\half$, $L_i$ the local terms (charge, recombination, $j\omega$),
+and $g_i$ the sources. The oxide enters at the interface node only: $C_{ox}$ is added to the first diagonal
+entry of $L_s$, and $g_s=(C_{ox}\tilde v,0,0)^T$; all other $g_i=0$.
+This is the block version of Section~\ref{sec:flux}: the fluxes are never subtracted from each
+other. After eliminating nodes $s\dots i$, node $i$ obeys $U_iX_{i+1}-(D_i+E_i)X_i=-b_i$ with
+\begin{align}
+E_s&=L_s, & b_s&=g_s\\
+E_{i+1}&=L_{i+1}+E_i\,(D_i+E_i)^{-1}U_i, & b_{i+1}&=g_{i+1}+D_i\,(D_i+E_i)^{-1}b_i
+\end{align}
+and back substitution $X_i=(D_i+E_i)^{-1}\left(U_iX_{i+1}+b_i\right)$ starting from $X_N=0$.
+
+\subsection{Capacitance and conductance}
+The gate charge per unit area is $Q=\varepsilon_{ox}E_{ox}$, so its phasor is
+$\tilde Q=C_{ox}(\tilde v-\tilde V_s)$ and
+\begin{align}
+\tilde C=\frac{\tilde Q}{\tilde v}=C_{ox}\left(1-\frac{\tilde V_s}{\tilde v}\right),\qquad
+C=\mathrm{Re}\,\tilde C,\qquad \frac{G}{\omega}=-\mathrm{Im}\,\tilde C
+\end{align}
+$C$ is the capacitance and $G$ the conductance per unit area at angular frequency $\omega$ (the admittance
+is $j\omega\tilde C$). At low frequency the inversion layer follows the signal and $C$ returns to about
+$C_{ox}$ in inversion; at high frequency it cannot, and $C$ stays at its minimum. $G/\omega$ peaks at the
+frequency where the change-over happens.
+
+Two kinds of sweep are done: a bias sweep ($C$ and $G/\omega$ versus $V_G$ at a few
+frequencies) and a frequency sweep ($C$ and $G/\omega$ versus $f$ at a few gate voltages).
+
+\section{Transient simulation}
+The steady state and the frozen-carrier deep depletion are the two limits of a gate that moves infinitely
+slowly or infinitely fast. In between, the equations are solved in time.
+
+\subsection{Time stepping}
+The unknowns at each node are $X_i=(V_i,\Phi_{n,i},\Phi_{p,i})$, with the currents in the form
+\eqref{eq:jnqf}, \eqref{eq:jpqf} and $np-n_{int}^2=n_{int}^2\left(e^{(\Phi_p-\Phi_n)/V_t}-1\right)$ in
+\eqref{eq:srh}. Backward Euler from time $t$ to $t+\Delta t$, with all terms at the new time except
+$n^{old}$, $p^{old}$:
+\begin{align}
+\varepsilon_{i+\half}\frac{V_{i+1}-V_i}{\Delta x_i}-\varepsilon_{i-\half}\frac{V_i-V_{i-1}}{\Delta x_{i-1}}
++q\,h_i\left(N_D-N_A+p_i-n_i\right)+Q_f\,\delta_{i,s}&=0\\
+-\frac1q\left(J_{n,i+\half}-J_{n,i-\half}\right)+h_i\left(R_i+\frac{n_i-n_i^{old}}{\Delta t}\right)&=0\\
+-\frac1q\left(J_{p,i+\half}-J_{p,i-\half}\right)-h_i\left(R_i+\frac{p_i-p_i^{old}}{\Delta t}\right)&=0
+\end{align}
+The boundary conditions are those of the steady state, with the gate node at $V_G(t+\Delta t)-\phi_{ms}$.
+The three equations are solved together by Newton's method. The linear system of each Newton iteration
+has the block form of Section~\ref{sec:block}, with $U_i$, $D_i$, $L_i$ the derivatives of the fluxes and
+local terms with respect to $X$ and the residual as $g_i$, and is solved by the same elimination. Updates
+larger than $5V_t$ are clipped.
+
+\subsection{Simulations}
+Both start from the steady state at the accumulation end of the gate-voltage range. The capacitance
+reported is the small-signal one of Section~\ref{sec:ac} at the highest frequency, around the state at
+each time.
+\begin{itemize}
+\item Sweep-rate dependent C--V: the gate is ramped towards inversion at a rate $dV_G/dt$, with
+$\Delta t=\Delta V_G/(dV_G/dt)$ per step. Slow ramps follow the equilibrium high-frequency curve and fast
+ramps the deep-depletion curve. The change-over is where the charging current $C_{ox}\,dV_G/dt$ equals the
+generation current, about $q\,n_{int}W/(2\tau)$.
+\item C--t: the gate is stepped into inversion in a very short time and then held. The device starts in
+deep depletion and the capacitance recovers to the equilibrium high-frequency value as generation builds up
+the inversion layer. The time steps grow geometrically after the step.
+\end{itemize}
+
+\end{document}

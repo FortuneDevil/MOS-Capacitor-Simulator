@@ -1,3 +1,15 @@
+# Linux build output (see makefile)
+o_files/
+moscap_sim
+
 # Windows build output (see windows/makefile)
 windows/o_files/
 windows/*.exe
+
+# Header dependency files written by the compiler
+*.d
+
+# LaTeX and Python by-products
+equations/*.aux
+equations/*.log
+__pycache__/

@@ -1,0 +1,36 @@
+# Builds and runs the simulator on Ubuntu on every push, to check that it works on Linux.
+# The CSV files and figures it produces can be downloaded from the run's "Artifacts".
+name: Linux build and run
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3-numpy python3-matplotlib
+
+      - name: Build
+        run: make
+
+      - name: Run the simulator
+        run: ./moscap_sim
+
+      - name: Make the figures
+        run: make plots
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: results
+          path: |
+            csv_files
+            figs

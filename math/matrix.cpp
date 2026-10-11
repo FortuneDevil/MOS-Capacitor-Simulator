@@ -4,7 +4,7 @@
 Matrix::Matrix(int r, int c): data(r * c, 0.0), rows(r), cols(c){}
 
 // Copy constructor
-Matrix::Matrix(const Matrix& other) : rows(other.rows), cols(other.cols), data(other.data) {}
+Matrix::Matrix(const Matrix& other) : data(other.data), rows(other.rows), cols(other.cols) {}
 
 // Identity Matrix
 Matrix Matrix::identity(int size){

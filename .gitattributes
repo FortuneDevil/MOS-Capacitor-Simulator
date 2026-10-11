@@ -1,0 +1,11 @@
+# Text files are stored with LF line endings in the repository
+* text=auto
+
+# Shell scripts and makefiles must keep LF line endings on every system, or they fail on Linux
+*.sh text eol=lf
+makefile text eol=lf
+Makefile text eol=lf
+
+# Binary files
+*.pdf binary
+*.png binary
