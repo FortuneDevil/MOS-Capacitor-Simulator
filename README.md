@@ -16,8 +16,8 @@ This is a C++ based simulation tool to compute the **C–V characteristics of a 
 - Non-uniform meshing for oxide and semiconductor. More data points near the oxide-semiconductor interface and less points in bulk.
 - Poisson equation solver for electrostatics.
 - Drift-diffusion solver for carrier concentrations using Scharfetter–Gummel discretization.
-- Time-dependent AC simulation using Crank–Nicolson.
-- Capacitance extraction using $`\frac{dQ}{dV_G}`$.
+- Small-signal AC analysis (linearised around each DC bias point) at any frequency.
+- Low-frequency and high-frequency C–V curves from $`C = \mathrm{Re}(\tilde{Q}/\tilde{v})`$.
 - Python scripts for plotting C–V characteristics and profiles.
 
 ---
@@ -31,20 +31,26 @@ This is a C++ based simulation tool to compute the **C–V characteristics of a 
 - **Carrier Continuity**:
   
 ```math
-\frac{\partial n}{\partial t} = \frac{1}{q} \frac{\partial J_n}{\partial x} - \frac{n - n_{eq}}{\tau_n}
+\frac{\partial n}{\partial t} = \frac{1}{q} \frac{\partial J_n}{\partial x} - R
 ```
 
 ```math
-\frac{\partial p}{\partial t} = -\frac{1}{q} \frac{\partial J_p}{\partial x} - \frac{p - p_{eq}}{\tau_p}
+\frac{\partial p}{\partial t} = -\frac{1}{q} \frac{\partial J_p}{\partial x} - R
+```
+
+- **Recombination** (Shockley–Read–Hall):
+
+```math
+R = \frac{np - n_i^2}{\tau_p (n + n_i) + \tau_n (p + n_i)}
 ```
   
 - **Discretization Methods**:
-  - Finite difference for Poisson's equation
+  - Finite volume for Poisson's equation
   - Scharfetter–Gummel for carrier transport
-  - Crank–Nicolson for time-domain simulation (AC)
-- **Capacitance Calculation**: $`C = \frac{dQ}{dV_G}`$
+  - Small-signal (phasor) linearisation for the AC analysis, solved together with the linearised Poisson equation
+- **Capacitance Calculation**: $`C = \mathrm{Re}\left(\tilde{Q}/\tilde{v}\right)`$, with $`\tilde{Q}`$ the AC gate charge for a gate signal $`\tilde{v}`$
 
-More Details are in equations folder.
+More details are in the equations folder: `eq_corrected.pdf` (source `eq_corrected.tex`) has the equations exactly as implemented.
 
 ---
 
@@ -68,6 +74,18 @@ More Details are in equations folder.
    ```bash
    make
    ```
+
+### Windows (MSYS2)
+
+The steps above are for Linux. On Windows, open the **MSYS2 UCRT64** shell and use the makefile in the `windows` folder instead:
+
+```bash
+cd windows
+make clean   # only needed after changing .hpp files
+make run     # builds windows/moscap_sim.exe and runs it from the repo root
+```
+
+All Windows build output stays inside `windows/`, so the Linux build files in the repo root are not touched. Plotting works the same way as on Linux (`cd plot && ./plot.sh`).
 
 ---
 
@@ -94,7 +112,11 @@ More Details are in equations folder.
    ./moscap_sim
    ```
 
-   - This produces output files such as `VG-C.csv`, `eq.csv`, `cc.csv` and `ac.csv` in csv_files folder.
+   - This produces these output files in the csv_files folder:
+     - `eq.csv`: V, n, p at equilibrium (VG = 0).
+     - `dc.csv`: V, n, p at the last DC bias.
+     - `ac.csv`: real and imaginary parts of the AC phasors of V, n, p at the last bias, per volt of gate signal.
+     - `VG_C.csv`: capacitance per unit area versus gate voltage, one column per frequency (set by `freqs` in `main.cpp`).
 
 4. **Post-process and plot (Python)**:
 

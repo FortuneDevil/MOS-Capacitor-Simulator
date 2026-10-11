@@ -6,46 +6,36 @@
 double NA = 1e22, ND = 1e16; // Example doping concentrations (adjust as needed)
 double T = 300;  // Temperature in Kelvin (default)
 double Vt = kb * T / q;  // Thermal voltage (calculated from constants)
-int x_points = 500;  // Number of grid points
-int start_SC = 10;   // Starting point for semiconductor region
-std::vector<double> x(x_points, 0);  // Initialize x, all set to 0
+int x_points = 500;  // Number of grid intervals
+int start_SC = 10;   // Node at the oxide-semiconductor interface
+std::vector<double> x(x_points + 1, 0);  // Initialize x, all set to 0 (indices 0..x_points)
 
-int n_VG = 20;
+int n_VG = 81;
 
 double ni = 1.5e10*1e6;
 double mu_n = 0.1360;
 double mu_p = 0.0480;
-double delta_t;
+
+double controlVolume(const std::vector<double>& x, int i){
+    int last = x.size() - 1;
+    if (i < start_SC) return 0;
+    if (i == start_SC) return (x[i + 1] - x[i]) / 2;
+    if (i == last) return (x[i] - x[i - 1]) / 2;
+    return (x[i + 1] - x[i - 1]) / 2;
+}
 
 void consistent(const std::vector<double>& x, Matrix& V, Matrix& n, Matrix& p, Condition cond){
     int iter = 0;
     while (iter < max_iter){
-        Matrix temp_V = V, temp_n = n, temp_p = p;
-        std::cout << "Iteration " << iter << std::endl;
-        poissonSolver(x, V, n, p, cond);
-        carrier(x, V, n, p, cond);
-        int time = 0;
-        switch (cond) {
-            case EQUILIBRIUM:
-                time = 0;
-                break;
-            case DC:
-                time = 1;
-                break;
-            case AC:
-                time = 2;
-                break;
-            default:
-                break;
-        }
-        if (max_relative_error(V, temp_V, time) < tol_V &&
-            max_relative_error(n, temp_n, time) < tol_np &&
-            max_relative_error(p, temp_p, time) < tol_np){
-                std::cout << "Converged at iteration " << iter << std::endl;
-                break;
+        double change_V = poissonSolver(x, V, n, p, cond);
+        double change_np = carrier(x, V, n, p, cond);
+        if (change_V < tol_V && change_np < tol_np){
+            std::cout << "Converged at iteration " << iter << std::endl;
+            return;
         }
         iter++;
     }
+    std::cerr << "WARNING: not converged after " << max_iter << " iterations" << std::endl;
 }
 
 void save_x_based(const std::string& filename, const std::vector<double>& x, const Matrix& V, const Matrix& n, const Matrix& p, int time_step) {
@@ -80,17 +70,43 @@ void save_x_based(const std::string& filename, const std::vector<double>& x, con
     std::cout << "Data saved to " << filename << std::endl;
 }
 
-void save_capacitance_data(const std::string& filename, const std::vector<std::pair<double, double>>& data) {
+void save_ac(const std::string& filename, const std::vector<double>& x, const std::vector<std::complex<double>>& V_ac,
+             const std::vector<std::complex<double>>& n_ac, const std::vector<std::complex<double>>& p_ac) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << " for writing." << std::endl;
+        return;
+    }
+
+    // Real and imaginary parts of the AC phasors, per volt of gate signal
+    file << "x,V_re,V_im,n_re,n_im,p_re,p_im\n";
+    for (size_t i = 0; i < x.size(); i++) {
+        file << std::scientific << std::setprecision(6)
+             << x[i] << ","
+             << V_ac[i].real() << "," << V_ac[i].imag() << ","
+             << n_ac[i].real() << "," << n_ac[i].imag() << ","
+             << p_ac[i].real() << "," << p_ac[i].imag() << "\n";
+    }
+
+    file.close();
+    std::cout << "Data saved to " << filename << std::endl;
+}
+
+void save_capacitance_data(const std::string& filename, const std::vector<double>& freqs, const std::vector<std::vector<double>>& data) {
     std::ofstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open " << filename << " for writing.\n";
         return;
     }
 
-    file << "VG,C\n";
-    for (const auto& [vg, c] : data) {
-        file << std::scientific << std::setprecision(6)
-             << vg << "," << c << "\n";
+    // One capacitance column per frequency
+    file << "VG";
+    for (double f : freqs) file << ",C (f = " << f << " Hz)";
+    file << "\n";
+    for (const auto& row : data) {
+        file << std::scientific << std::setprecision(6) << row[0];
+        for (size_t k = 1; k < row.size(); k++) file << "," << row[k];
+        file << "\n";
     }
 
     file.close();
@@ -98,58 +114,67 @@ void save_capacitance_data(const std::string& filename, const std::vector<std::p
 }
 
 int main(){
-    double freq = 1e3;  // Frequency in rad/s
-    delta_t = 1e-3/freq;
+    // Frequencies (Hz) of the small-signal analysis. The last one is the one saved in ac.csv.
+    std::vector<double> freqs = {1e-3, 1e6};
     double t_ox = 10e-9;    //10nm oxide
-    Matrix V(x_points + 1, 3), n(x_points + 1, 3), p(x_points + 1, 3);
+    Matrix V(x_points + 1, 2), n(x_points + 1, 2), p(x_points + 1, 2);
+
+    // Charge-neutral bulk: p - n = NA - ND and n p = ni^2
+    double doping = NA - ND;
+    double p_bulk, n_bulk;
+    if (doping >= 0){
+        p_bulk = (doping + sqrt(doping * doping + 4 * ni * ni)) / 2;
+        n_bulk = ni * ni / p_bulk;
+    } else {
+        n_bulk = (-doping + sqrt(doping * doping + 4 * ni * ni)) / 2;
+        p_bulk = ni * ni / n_bulk;
+    }
+
+    // Mesh: uniform in the oxide, spacing a_x * b_x^k in the semiconductor
     for (int i = 0; i <= start_SC; i++){
         x[i] = i * t_ox / start_SC;
     }
-    for (int i = start_SC + 1; i <= x_points; i++){
-        x[i] = t_ox + a_x * (pow(b_x, (i - start_SC) - 1)) / (b_x - 1);
-        n(i, 0) = pow(ni, 2) / NA;
-        p(i, 0) = NA;
+    for (int i = start_SC; i <= x_points; i++){
+        if (i > start_SC) x[i] = t_ox + a_x * (pow(b_x, i - start_SC) - 1) / (b_x - 1);
+        n(i, 0) = n_bulk;
+        p(i, 0) = p_bulk;
     }
     std::cout << "EQUILIBRIUM\n\n";
     consistent(x, V, n, p, EQUILIBRIUM); // solve for equilibrium
     save_x_based("csv_files/eq.csv", x, V, n, p, 0);
-    
-    std::vector<std::pair<double, double>> vg_c_data;
+
+    // Start the DC solution from equilibrium
+    V.copyColumn(0, 1); // Copies column 0 to 1
+    n.copyColumn(0, 1); // Copies column 0 to 1
+    p.copyColumn(0, 1); // Copies column 0 to 1
+
+    std::vector<std::vector<double>> vg_c_data;
+    std::vector<std::complex<double>> V_ac, n_ac, p_ac;
     // Now apply a DC bias
     double VG, VG_u = 2, VG_l = -2; // VG ranges from VG_l to VG_u
+    double max_step = 0.1;  // largest change of gate voltage between two DC solutions
     for (int i = 0; i < n_VG; i++){
         VG = VG_l + (VG_u - VG_l) * i / (n_VG - 1);
-        V.copyColumn(0, 1); // Copies column 0 to 1
-        n.copyColumn(0, 1); // Copies column 0 to 1
-        p.copyColumn(0, 1); // Copies column 0 to 1
-        
-        V(0, 1) = VG;
         std::cout << "V_bias = " << VG << std::endl;
-        std::cout << std::endl;
-        consistent(x, V, n, p, DC);
 
-        V.copyColumn(1, 2); // Copies column 1 to 2
-        n.copyColumn(1, 2); // Copies column 1 to 2
-        p.copyColumn(1, 2); // Copies column 1 to 2
-        
-        V(0, 2) = V(0, 1) + 1e-3 * sin(freq * delta_t);    // add a small ac
-        std::cout << "V_ac_boundary = " << V(0, 2) << std::endl;
-        std::cout << std::endl;
-        consistent(x, V, n, p, AC);
+        // Move the gate from the previous bias to VG in small steps, each one starting from the last solution
+        int steps = std::max(1, (int)ceil(fabs(VG - V(0, 1)) / max_step));
+        double step = (VG - V(0, 1)) / steps;
+        for (int k = 1; k <= steps; k++){
+            V(0, 1) = (k == steps) ? VG : V(0, 1) + step;
+            consistent(x, V, n, p, DC);
+        }
 
-        // Calculate the capacitance
-        //double C = e_ox / (x[1] - x[0]) * (1 - (V(1, 2) - V(1, 1)) / (V(0, 2) - V(0, 1)));
-        // Capacitance computation via E-field difference
-double E_ox_ac = (V(0, 2) - V(1, 2)) / (x[1] - x[0]);
-double E_ox_dc = (V(0, 1) - V(1, 1)) / (x[1] - x[0]);
-double dE = E_ox_ac - E_ox_dc;
-double dVg = V(0, 2) - V(0, 1);
-
-double C = e_ox * dE / dVg;
-        vg_c_data.emplace_back(VG, C);
+        // Small-signal AC analysis around this DC solution
+        std::vector<double> row = {VG};
+        for (double f : freqs){
+            std::complex<double> C = smallSignalAC(x, V, n, p, 2 * pi * f, V_ac, n_ac, p_ac);
+            row.push_back(C.real());
+        }
+        vg_c_data.push_back(row);
     }
     save_x_based("csv_files/dc.csv", x, V, n, p, 1);
-    save_x_based("csv_files/ac.csv", x, V, n, p, 2);
-    save_capacitance_data("csv_files/VG_C.csv", vg_c_data);
+    save_ac("csv_files/ac.csv", x, V_ac, n_ac, p_ac);
+    save_capacitance_data("csv_files/VG_C.csv", freqs, vg_c_data);
     return 0;
 }

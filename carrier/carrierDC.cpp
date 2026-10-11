@@ -1,64 +1,47 @@
 #include "carrier.hpp"
 
-void carrierDC(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix& p){
-    int N = V.size() - start_SC - 1;
-    Matrix F_n(N, 1), F_p(N, 1);
-    Matrix delta_n(N, 1), delta_p(N, 1);
-    Matrix Jac_n(N, N), Jac_p(N, N);
-    std::vector<double> phi (N, 0);
-    int correctionFactor = start_SC + 1;
-    for (int i = start_SC + 1; i < V.size(); i++){
-        phi[i - correctionFactor] = V(i, 1) / Vt;
-    }
-    double factor1n = sqrt(b_x) * Vt * mu_n;
-    double factor1p = sqrt(b_x) * Vt * mu_p;
-    for (int i = 1; i < N - 1; i++){
-        double delta_x_i = (x[i + 1] - x[i]);
-        double delta_x_i_minus = (x[i] - x[i - 1]);
-        double nfactor = factor1n / delta_x_i;
-        double pfactor = factor1p / delta_x_i;
-        int gi = i + correctionFactor;  // global index
+double carrierSteady(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix& p, int time){
+    int N = V.size() - start_SC;    // semiconductor nodes, from the interface to the bulk contact
+    // Coefficients of the flux between nodes i and i + 1: up * (value at i + 1) - down * (value at i)
+    std::vector<double> up_n(N, 0.0), down_n(N, 0.0), up_p(N, 0.0), down_p(N, 0.0);
+    // SRH recombination R = (n p - ni^2) / srh, written as sink * (own carrier) - source
+    std::vector<double> sink_n(N, 0.0), sink_p(N, 0.0), source(N, 0.0);
 
+    for (int i = 0; i < N - 1; i++){
+        int gi = i + start_SC;  // global index
+        double delta_x_i = x[gi + 1] - x[gi];
+        double dphi = (V(gi + 1, time) - V(gi, time)) / Vt;
+        double nfactor = Vt * mu_n / delta_x_i;
+        double pfactor = Vt * mu_p / delta_x_i;
 
-        Jac_n(i, i + 1) = - nfactor * B(phi[i + 1] - phi[i]) / delta_x_i;
-        Jac_n(i, i) = delta_x_i / tau_n + nfactor * (B(phi[i] - phi[i - 1]) / delta_x_i_minus 
-                            + B(phi[i] - phi[i + 1]) / delta_x_i);
-        Jac_n(i, i - 1) = - nfactor * B(phi[i - 1] - phi[i]) / delta_x_i_minus;
+        up_n[i] = nfactor * B(dphi);
+        down_n[i] = nfactor * B(-dphi);
+        up_p[i] = pfactor * B(-dphi);
+        down_p[i] = pfactor * B(dphi);
 
-        double constant = - delta_x_i * n(i, 0) / tau_n;
-
-        F_n(i, 0) = -(Jac_n(i, i + 1) * n(gi + 1, 1) + Jac_n(i, i) * n(gi, 1) 
-                    + Jac_n(i, i - 1) * n(gi - 1, 1) + constant);
-
-
-        // Now do the same for p
-        Jac_p(i, i + 1) = - pfactor * B(phi[i] - phi[i + 1]) / delta_x_i;
-        Jac_p(i, i) = delta_x_i / tau_p + pfactor * (B(phi[i - 1] - phi[i]) / delta_x_i_minus 
-                            + B(phi[i + 1] - phi[i]) / delta_x_i);
-        Jac_p(i, i - 1) = - pfactor * B(phi[i] - phi[i + 1]) / delta_x_i_minus;
-
-        constant = - delta_x_i * p(i, 0) / tau_p;
-
-        F_p(i, 0) = -(Jac_p(i, i + 1) * p(gi + 1, 1) + Jac_p(i, i) * p(gi, 1) 
-                    + Jac_p(i, i - 1) * p(gi - 1, 1) + constant);
+        double h = controlVolume(x, gi);
+        double srh = tau_p * (n(gi, time) + ni) + tau_n * (p(gi, time) + ni);
+        sink_n[i] = h * p(gi, time) / srh;
+        sink_p[i] = h * n(gi, time) / srh;
+        source[i] = h * ni * ni / srh;
     }
 
-    // Boundary conditions
-    F_n(N - 1, 0) = 0; F_p(N - 1, 0) = 0;
-    Jac_n(N - 1, N - 1) = 1; Jac_p(N - 1, N - 1) = 1;
-    Jac_n(0, 0) = - exp(phi[1] - phi[0]);
-    Jac_n(0, 1) = 1; 
-    Jac_p(0, 1) = -1; 
-    Jac_p(0, 0) = exp(phi[1] - phi[0]);
+    // Solve for n, p. No flux at the interface (no current into the oxide);
+    // the bulk contact keeps its equilibrium concentrations.
+    std::vector<double> new_n = solveFluxSystem(up_n, down_n, sink_n, source, n(V.size() - 1, time));
+    std::vector<double> new_p = solveFluxSystem(up_p, down_p, sink_p, source, p(V.size() - 1, time));
 
-    // Solve for n, p
-    //std::cout << "Carrier DC: " << std::endl;
-    delta_n = solver(Jac_n, F_n);
-    delta_p = solver(Jac_p, F_p);
-
-    for(int i = 0; i < N - 1; i++){
-        int gi = i + correctionFactor;  // global index
-        n(gi, 1) += dampingFactor * delta_n(i, 0);
-        p(gi, 1) += dampingFactor * delta_p(i, 0);
+    double max_change = 0;
+    for (int i = 0; i < N - 1; i++){
+        int gi = i + start_SC;  // global index
+        max_change = std::max(max_change, fabs(new_n[i] / n(gi, time) - 1));
+        max_change = std::max(max_change, fabs(new_p[i] / p(gi, time) - 1));
+        n(gi, time) = new_n[i];
+        p(gi, time) = new_p[i];
     }
+    return max_change;
+}
+
+double carrierDC(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix& p){
+    return carrierSteady(x, V, n, p, 1);
 }

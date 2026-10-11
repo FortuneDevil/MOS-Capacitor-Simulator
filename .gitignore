@@ -1,0 +1,3 @@
+# Windows build output (see windows/makefile)
+windows/o_files/
+windows/*.exe

@@ -1,17 +1,12 @@
 #include "carrier.hpp"
 
-void carrier(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix& p, Condition cond){
+double carrier(const std::vector<double>& x, const Matrix& V, Matrix& n, Matrix& p, Condition cond){
     switch (cond) {
         case EQUILIBRIUM:
-            carrierEq(x, V, n, p);
-            break;
+            return carrierEq(x, V, n, p);
         case DC:
-            carrierDC(x, V, n, p);
-            break;
-        case AC:
-            carrierAC(x, V, n, p);
-            break;
+            return carrierDC(x, V, n, p);
         default:
-            break;
+            return 0;
     }
 }

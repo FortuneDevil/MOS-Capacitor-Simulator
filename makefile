@@ -1,3 +1,6 @@
+# Linux build. Run from the repo root: make, then ./moscap_sim (or make run).
+# For Windows (MSYS2), use windows/makefile instead.
+
 # Compiler and flags
 CXX := g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Icarrier -Imain -Imath -Ipoisson
@@ -33,9 +36,13 @@ $(OBJ_DIR)/%.o: %.cpp
 	@echo "Compiling: $< -> $@"
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Run the simulator (writes to csv_files/)
+run: $(BIN)
+	./$(BIN)
+
 # Clean
 clean:
 	@echo "Cleaning up..."
 	@rm -rf $(OBJ_DIR) $(BIN)
 
-.PHONY: all clean
+.PHONY: all run clean
