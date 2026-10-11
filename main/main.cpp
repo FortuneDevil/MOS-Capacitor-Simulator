@@ -115,7 +115,7 @@ void save_capacitance_data(const std::string& filename, const std::vector<double
 
 int main(){
     // Frequencies (Hz) of the small-signal analysis. The last one is the one saved in ac.csv.
-    std::vector<double> freqs = {1e-3, 1e6};
+    std::vector<double> freqs = {1e-3, 1e-2, 5e-2, 1e-1, 1, 10, 1e3, 1e6};
     double t_ox = 10e-9;    //10nm oxide
     Matrix V(x_points + 1, 2), n(x_points + 1, 2), p(x_points + 1, 2);
 
@@ -151,7 +151,7 @@ int main(){
     std::vector<std::vector<double>> vg_c_data;
     std::vector<std::complex<double>> V_ac, n_ac, p_ac;
     // Now apply a DC bias
-    double VG, VG_u = 2, VG_l = -2; // VG ranges from VG_l to VG_u
+    double VG, VG_u = 4, VG_l = -2; // VG ranges from VG_l to VG_u
     double max_step = 0.1;  // largest change of gate voltage between two DC solutions
     for (int i = 0; i < n_VG; i++){
         VG = VG_l + (VG_u - VG_l) * i / (n_VG - 1);
